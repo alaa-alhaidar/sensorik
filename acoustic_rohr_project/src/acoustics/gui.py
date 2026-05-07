@@ -50,8 +50,8 @@ SOURCE_SCARLETT = "Audio-Interface"
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0 # Periode von 1 ms, 0,001 s
-MEASUREMENT_DURATION = 10.0
-WINDOW_SECONDS = 10.0
+MEASUREMENT_DURATION = 1.0
+WINDOW_SECONDS = MEASUREMENT_DURATION
 DISPLAY_PERIODS = 5
 
 # FFT-Anzeige
@@ -78,7 +78,7 @@ class SignalPlotDialog(QDialog):
         self.plot_widget.setMouseEnabled(x=True, y=False)
         self.plot_widget.showGrid(x=True, y=False)
         self.plot_widget.plot(x, y, pen="y")
-        self.plot_widget.enableAutoRange() # Automatischer Zoom, damit die Daten gut sichtbar sind
+        self.plot_widget.enableAutoRange(False) # Automatischer Zoom, damit die Daten gut sichtbar sind
         layout.addWidget(self.plot_widget)
         self.setLayout(layout)
 
@@ -98,6 +98,70 @@ class LogDialog(QDialog):
 
     def append(self, text):
         self.log_view.append(text)
+
+class ComplexResultsDialog(QDialog):
+    def __init__(self, mic_results, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Messergebnisse")
+        self.resize(1500, 900)
+
+        layout = QVBoxLayout()
+
+        title = QLabel("Komplexe Darstellung der drei Mikrofone")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; margin: 10px;")
+        layout.addWidget(title)
+
+        # -----------------------------
+        # Oben: 3 Mikrofone nebeneinander
+        # -----------------------------
+        mic_row = QHBoxLayout()
+
+        for i in range(3):
+            box = QGroupBox(f"Mikrofon {i+1}")
+            box_layout = QVBoxLayout()
+
+            plot = pg.PlotWidget(title=f"P{i + 1} im komplexen Diagramm")
+
+            plot.setMinimumSize(420, 420)
+            plot.setAspectLocked(True, ratio=1)
+            plot.setLabel("bottom", "Realteil [µV]")
+            plot.setLabel("left", "Imaginärteil [µV]")
+            plot.showGrid(x=True, y=True)
+            plot.setMouseEnabled(x=False, y=False)
+            # Null-Linien
+            vline = pg.InfiniteLine(pos=0, angle=90)
+            hline = pg.InfiniteLine(pos=0, angle=0)
+            plot.addItem(vline)
+            plot.addItem(hline)
+
+            P = mic_results[f"P{i+1}"]
+            P_plot = P * 1e6
+
+            plot.plot([0, P_plot.real], [0, P_plot.imag], pen="y")
+            plot.plot([P_plot.real], [P_plot.imag], pen=None, symbol="o", symbolSize=10)
+
+            max_val = max(abs(P_plot.real), abs(P_plot.imag), 1.0)
+            plot.setXRange(-1.5 * max_val, 1.5 * max_val)
+            plot.setYRange(-1.5 * max_val, 1.5 * max_val)
+
+            box_layout.addWidget(plot)
+
+            info = QLabel()
+            info.setText(
+                f"|P{i+1}| = {mic_results[f'amp{i+1}']:.6e}\n"
+                f"Phase = {mic_results[f'phase{i+1}']:.6f} rad\n"
+                f"RMS = {mic_results[f'rms{i+1}']:.6e}\n"
+                f"Phasenverschiebung = {mic_results[f'phase_shift{i+1}']:.6f} rad\n"
+                f"Phasenverschiebung = {mic_results[f'phase_shift_deg{i+1}']:.2f}°\n"
+                f"Zeitverschiebung = {mic_results[f'time_shift_ms{i+1}']:.3f} ms"
+            )
+            info.setStyleSheet("font-size: 14px; padding: 6px; background: white;")
+            box_layout.addWidget(info)
+            box.setLayout(box_layout)
+            mic_row.addWidget(box)
+
+        layout.addLayout(mic_row)
+        self.setLayout(layout)
 
 class StartScreen(QWidget):
     def __init__(self, parent=None):
@@ -184,6 +248,7 @@ class GeneratorScreen(QWidget):
         self.gen_on_button = QPushButton("Output ON")
         self.gen_off_button = QPushButton("Output OFF")
         self.gen_close_button = QPushButton("Trennen")
+
         row3.addWidget(self.gen_on_button)
         row3.addWidget(self.gen_off_button)
         row3.addWidget(self.gen_close_button)
@@ -315,6 +380,7 @@ class SignalAnalysisScreen(QWidget):
         self.fft_plot_curves = []
         self.open_plot_windows = []
         self.log_dialog = LogDialog(parent=self)
+        self.results_dialog = None
         self.last_recording = None
         self.last_chunk = None
         self.last_mode = None
@@ -366,11 +432,15 @@ class SignalAnalysisScreen(QWidget):
         self.audio_start_button = QPushButton("Live Start")
         self.audio_stop_button = QPushButton("Stop")
         self.record_button = QPushButton("1 s aufnehmen")
+        self.show_log_button = QPushButton("Log anzeigen")
+        self.show_results_button = QPushButton("Ergebnisse anzeigen")
+
         row3.addWidget(self.audio_start_button)
         row3.addWidget(self.audio_stop_button)
         row3.addWidget(self.record_button)
+        row3.addWidget(self.show_log_button)
+        row3.addWidget(self.show_results_button)
         
-
         group_layout.addLayout(row1)
         group_layout.addLayout(row2)
         group_layout.addLayout(row3)
@@ -379,13 +449,13 @@ class SignalAnalysisScreen(QWidget):
 
         hint = QLabel(
             f"Es wird {MEASUREMENT_DURATION} Sekunde gemessen. Im Zeitplot werden nur {DISPLAY_PERIODS} "
-            "Periode(n) angezeigt, damit Phasenverschiebungen besser sichtbar sind."
+            f"Periode(n) angezeigt, damit Phasenverschiebungen besser sichtbar sind."
         )
         main_layout.addWidget(hint)
 
         for ch in range(self.num_channels):
             time_plot = pg.PlotWidget(title=f"Zeit Signal - Mikrofon {ch + 1}")
-            time_plot.setLabel("bottom", "Zeit [s]")
+            time_plot.setLabel("bottom", "Zeit [sek]")
             time_plot.setLabel("left", "V")
             time_plot.getAxis("left").enableAutoSIPrefix(False)
             time_plot.showGrid(x=True, y=False)
@@ -419,13 +489,33 @@ class SignalAnalysisScreen(QWidget):
 
         self.setLayout(main_layout)
 
-    def _connect_signals(self): # Hier werden die Signale der UI-Elemente mit den entsprechenden Funktionen verbunden
-        self.source_combo.currentTextChanged.connect(self.on_source_changed)
-        self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
-        self.audio_start_button.clicked.connect(self.start_audio)
-        self.audio_stop_button.clicked.connect(self.stop_audio)
-        self.record_button.clicked.connect(lambda: self.record_for_time(MEASUREMENT_DURATION))
-        self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
+    def _connect_signals(self):
+                self.source_combo.currentTextChanged.connect(self.on_source_changed)
+                self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
+                self.audio_start_button.clicked.connect(self.start_audio)
+                self.audio_stop_button.clicked.connect(self.stop_audio)
+                self.record_button.clicked.connect(lambda: self.record_for_time(MEASUREMENT_DURATION))
+                self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
+                self.show_log_button.clicked.connect(self.show_log_window)
+                self.show_results_button.clicked.connect(self.show_results_window)
+
+    def show_results_window(self):
+            if not hasattr(self, "results_dialog") or self.results_dialog is None:
+                QMessageBox.information(
+                    self,
+                    "Keine Ergebnisse",
+                    "Bitte zuerst eine Messung aufnehmen."
+                )
+                return
+
+            self.results_dialog.show()
+            self.results_dialog.raise_()
+            self.results_dialog.activateWindow()  
+
+    def show_log_window(self):
+        self.log_dialog.show()
+        self.log_dialog.raise_()
+        self.log_dialog.activateWindow()
 
     def log(self, text):
         self.log_dialog.append(text)
@@ -785,9 +875,8 @@ class SignalAnalysisScreen(QWidget):
             self.compute_fft_from_signal(signal)
             self.log("#" * 100)
 
-            self.log_dialog.show()
-            self.log_dialog.raise_()
-            self.log_dialog.activateWindow()
+            mic_results = self.build_mic_result_dict(m, f0)
+            self.results_dialog = ComplexResultsDialog(mic_results, parent=self)
 
             return m
 
@@ -848,10 +937,29 @@ class SignalAnalysisScreen(QWidget):
                 self.log(
                     f"Mikrofon {ch + 1},FFT-Amplitude bei {freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}"
                 )
-
+                
 
             self._refresh_fft_plots()
+            self.log("#" * 100) 
+            # 10 FFT-Werte um die Messfrequenz f0 loggen
+            half_window = 5
+            start_idx = max(0, f0_index - half_window)
+            end_idx = min(len(freqs), f0_index + half_window + 1)
 
+            self.log(f"{'Index':>10} | {'Frequenz [Hz]':>18} | {'Abstand zu f0 [Hz]':>18} | {'Amplitude [V]':>18}")
+            self.log("-" * 100)
+
+            for idx in range(start_idx, end_idx):
+                freq = freqs[idx]
+                distance_to_f0 = freq - f0
+                self.log(
+                    f"{idx:10d} | "
+                    f"{freq:18.3f} | "
+                    f"{distance_to_f0:18.3f} | "
+                    f"{amp[idx]:18.6e}"
+                )
+
+            self.log("-" * 100)
         except Exception as e:
             QMessageBox.critical(self, "FFT-Fehler", str(e)) 
 
@@ -958,7 +1066,7 @@ class SignalAnalysisScreen(QWidget):
             title=f"Zeit Signal - Mikrofon {ch + 1}",
             x=self.time_axis.copy(),
             y=np.asarray(self.plot_buffers[ch]).copy(),
-            xlabel="Zeit [s]",
+            xlabel="Zeit [sek]",
             ylabel="V",
             parent=self,
         )
@@ -994,7 +1102,51 @@ class SignalAnalysisScreen(QWidget):
     def cleanup(self):
         self.stop_audio()
 
+    def build_mic_result_dict(self, m, f0):
+        phase_ref = m["phase1"]
+        result = {}
 
+        for i in range(1, 4):
+            phase_shift = m[f"phase{i}"] - phase_ref
+            phase_shift_deg = np.degrees(phase_shift)
+            time_shift_ms = phase_shift / (2.0 * np.pi * f0) * 1000.0
+
+            result[f"P{i}"] = m[f"P{i}"]
+            result[f"amp{i}"] = m[f"amp{i}"]
+            result[f"phase{i}"] = m[f"phase{i}"]
+            result[f"rms{i}"] = m[f"rms{i}"]
+            result[f"phase_shift{i}"] = phase_shift
+            result[f"phase_shift_deg{i}"] = phase_shift_deg
+            result[f"time_shift_ms{i}"] = time_shift_ms
+
+        return result
+    
+    def compute_forward_reflected_results(self, m, f0):
+        cfg = self._get_wave_config()
+        freqs = np.array([f0], dtype=float)
+
+        A, B, residual = estimate_forward_reflected_three_mics_ls(
+            np.array([m["P1"]], dtype=complex),
+            np.array([m["P2"]], dtype=complex),
+            np.array([m["P3"]], dtype=complex),
+            freqs,
+            cfg,
+        )
+
+        A0 = A[0]
+        B0 = B[0]
+
+        return {
+            "A": A0,
+            "A_abs": np.abs(A0),
+            "A_phase": np.angle(A0),
+            "B": B0,
+            "B_abs": np.abs(B0),
+            "B_phase": np.angle(B0),
+            "B_over_A": np.abs(B0) / (np.abs(A0) + 1e-12),
+            "residual": residual[0],
+        }
+    
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
