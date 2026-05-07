@@ -42,7 +42,7 @@ MAX_AUTO_STEPS = 5
 MIN_GENERATOR_VOLTAGE = 0.01
 MAX_GENERATOR_VOLTAGE = 1.0
 
-NUM_CHANNELS = 2
+NUM_CHANNELS = 3
 
 # Signalquelle
 SOURCE_SIMULATION = "Simulation"
@@ -50,8 +50,8 @@ SOURCE_SCARLETT = "Audio-Interface"
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0 # Periode von 1 ms, 0,001 s
-MEASUREMENT_DURATION = 1.0
-WINDOW_SECONDS = 1.0
+MEASUREMENT_DURATION = 10.0
+WINDOW_SECONDS = 10.0
 DISPLAY_PERIODS = 5
 
 # FFT-Anzeige
@@ -345,7 +345,7 @@ class SignalAnalysisScreen(QWidget):
         row1 = QHBoxLayout()
         self.source_combo = QComboBox()
         self.source_combo.addItems([SOURCE_SIMULATION, SOURCE_SCARLETT])
-        self.source_combo.setCurrentText(SOURCE_SCARLETT)
+        self.source_combo.setCurrentText(SOURCE_SIMULATION)
         self.sample_rate_combo = QComboBox()
         self.sample_rate_combo.addItems(["44100", "48000", "88200", "96000"])
         self.sample_rate_combo.setCurrentText("48000")
@@ -378,7 +378,7 @@ class SignalAnalysisScreen(QWidget):
         main_layout.addWidget(group)
 
         hint = QLabel(
-            f"Es wird 1 Sekunde gemessen. Im Zeitplot werden nur {DISPLAY_PERIODS} "
+            f"Es wird {MEASUREMENT_DURATION} Sekunde gemessen. Im Zeitplot werden nur {DISPLAY_PERIODS} "
             "Periode(n) angezeigt, damit Phasenverschiebungen besser sichtbar sind."
         )
         main_layout.addWidget(hint)
@@ -387,6 +387,7 @@ class SignalAnalysisScreen(QWidget):
             time_plot = pg.PlotWidget(title=f"Zeit Signal - Mikrofon {ch + 1}")
             time_plot.setLabel("bottom", "Zeit [s]")
             time_plot.setLabel("left", "V")
+            time_plot.getAxis("left").enableAutoSIPrefix(False)
             time_plot.showGrid(x=True, y=False)
             time_plot.setMouseEnabled(x=True, y=False)
             time_curve = time_plot.plot([], [], pen="y")
@@ -397,6 +398,7 @@ class SignalAnalysisScreen(QWidget):
             fft_plot = pg.PlotWidget(title=f"FFT Betrag - Mikrofon {ch + 1}")
             fft_plot.setLabel("bottom", "Frequenz [Hz]")
             fft_plot.setLabel("left", "|FFT|")
+            fft_plot.getAxis("left").enableAutoSIPrefix(False)
             fft_plot.showGrid(x=True, y=False)
             fft_plot.setMouseEnabled(x=True, y=False)
             fft_curve = fft_plot.plot([], [], pen="y")
@@ -505,8 +507,6 @@ class SignalAnalysisScreen(QWidget):
 
         self._refresh_time_plots()
         self._refresh_fft_plots()
-
-        self.log("Plot-Speicher zurückgesetzt.")
 
     def _refresh_time_plots(self):
         if not self.time_plot_curves:
@@ -735,15 +735,6 @@ class SignalAnalysisScreen(QWidget):
                 signal = self.focusrite.record_input(duration=duration)
 
             signal = np.asarray(signal, dtype=np.float32)
-            self.log(f"CH1 max = {np.max(np.abs(signal[:, 0])):.6e}")
-            self.log(f"CH2 max = {np.max(np.abs(signal[:, 1])):.6e}")
-            self.log(f"CH3 max = {np.max(np.abs(signal[:, 2])):.6e}")
-            self.log(f"CH4 max = {np.max(np.abs(signal[:, 3])):.6e}" if signal.shape[1] > 3 else "CH4 nicht vorhanden")
-                        # Debug-Infos
-            self.log("-" * 100)
-            self.log(f"DEBUG: duration = {duration}")
-            self.log(f"DEBUG: signal.shape = {signal.shape}")
-            self.log(f"DEBUG: signal.size = {signal.size}")
 
             if signal.size == 0:
                 raise ValueError(
@@ -774,12 +765,12 @@ class SignalAnalysisScreen(QWidget):
 
             self.update_time_plots(signal, f0)
 
-            self.log(f"Aufnahme abgeschlossen: Dauer={duration:.3f} s")
+            freq_resolution = sample_rate / num_samples
+            self.log(f"Aufnahme abgeschlossen: Dauer={duration:.0f} s")
             self.log(f"Samples pro Mikrofon: {num_samples}")
+            self.log(f"Sample-Rate: {sample_rate:.1f} Hz")
             self.log(f"Messfrequenz: {f0:.2f} Hz")
-            self.log(f"Frequenzauflösung: {sample_rate / num_samples:.3f} Hz")
-            self.log(f"Frequenzauflösung: {sample_rate} Hz")
-            self.log(f"Frequenzauflösung: {num_samples:.3f} Hz")
+            self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
 
             self.log("-" * 100)
 
@@ -825,20 +816,13 @@ class SignalAnalysisScreen(QWidget):
                 raise ValueError("Signal ist zu kurz für FFT.")
 
             freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate) # Frequenzachsenwerte für die FFT (z.B. 0, 1, 2, ..., 24000 Hz bei 48 kHz und n=48000)
-            self.fft_freq_axis = freqs.astype(np.float32) 
-
-            self.log(f"FFT-Frequenzachsenwerte (bis {FFT_MAX_FREQ} Hz):")
+            self.fft_freq_axis = freqs.astype(np.float32)
 
             window = np.hanning(n) # Hanning-Fenster zur Reduzierung von Spektralleckagen
             window_norm = np.sum(window) # Normierungskonstante, damit die Amplituden korrekt bleiben (Summe des Fensters)
 
             self.fft_buffers = []
             f0_index = int(np.argmin(np.abs(freqs - f0)))
-
-            self.log("FFT:")
-            self.log(f"N = {n}, Δf = {sample_rate / n:.3f} Hz")
-            self.log("-" * 100)
-            self.log(f" {freqs} ")
 
             for ch in range(self.num_channels):
                 
@@ -855,13 +839,14 @@ class SignalAnalysisScreen(QWidget):
                 x = signal[:, ch]
                 spectrum = np.fft.rfft(x * window) # Hanning-Fenster anwenden und FFT berechnen damit die Amplituden korrekt bleiben, 
 
-                self.log(f" {spectrum} ")
+                '''
+                spectrum enthält für jede Frequenzlinie einen komplexen Wert:
+                Realteil + Imaginärteil j
+                '''
                 amp = 2.0 * np.abs(spectrum) / window_norm # da wir nur die positiven Frequenzen betrachten, müssen wir mit 2.0 multiplizieren, um die korrekte Amplitude zu erhalten
                 self.fft_buffers.append(amp.astype(np.float32))
-
                 self.log(
-                    f"Mikrofon {ch + 1}: "
-                    f"FFT-Amplitude bei {f0:.1f} Hz = {amp[f0_index]:.6e}"
+                    f"Mikrofon {ch + 1},FFT-Amplitude bei {freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}"
                 )
 
 
