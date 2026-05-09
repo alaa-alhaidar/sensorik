@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-import wave
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
@@ -11,7 +10,6 @@ import numpy as np
 import pyqtgraph as pg
 
 from automation import (
-    mean_microphone_amplitude,
     update_voltage_from_amplitude,
     amplitude_reached_target,
 )
@@ -1267,27 +1265,27 @@ class MainWindow(QWidget):
                     raise RuntimeError("Messung fehlgeschlagen.")
                 
                 wave = self.signal_screen.compute_forward_reflected_results(m, f0)
-                measured_amp = wave["A_abs"]
+                measured_A_abs = wave["A_abs"]
 
                 ok, relative_error = amplitude_reached_target(
-                    measured_amp,
+                    measured_A_abs,
                     TARGET_AMP,
                     AMP_TOLERANCE,
                 )
 
                 self.signal_screen.log(f"Ziel-Amplitude |A| = {TARGET_AMP:.6e}")
-                self.signal_screen.log(f"Gemessene hinlaufende Welle |A| = {measured_amp:.6e}")
+                self.signal_screen.log(f"Gemessene hinlaufende Welle |A| = {measured_A_abs:.6e}")
                 self.signal_screen.log(f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}")
                 self.signal_screen.log(f"Relativer Fehler = {relative_error:.3f}")
 
                 if ok:
-                    self.signal_screen.log("Ziel-Amplitude erreicht.")
+                    self.signal_screen.log("Ziel-Amplitude |A| erreicht.")
                     break
 
                 voltage = update_voltage_from_amplitude(
                     voltage,
                     TARGET_AMP,
-                    measured_amp,
+                    measured_A_abs,
                     MIN_GENERATOR_VOLTAGE,
                     MAX_GENERATOR_VOLTAGE,
                 )
