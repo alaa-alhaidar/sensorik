@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QStackedWidget,
     QDialog,
-    QSizePolicy
+    QSizePolicy,
 )
 
 from generator_interface import TektronixAFG320
@@ -49,7 +49,7 @@ SOURCE_SIMULATION = "Simulation"
 SOURCE_SCARLETT = "Audio-Interface"
 
 # Feste Messparameter
-DEFAULT_MEASUREMENT_F0 = 1000.0 # Periode von 1 ms, 0,001 s
+DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
 MEASUREMENT_DURATION = 1.0
 WINDOW_SECONDS = MEASUREMENT_DURATION
 DISPLAY_PERIODS = 5
@@ -78,9 +78,12 @@ class SignalPlotDialog(QDialog):
         self.plot_widget.setMouseEnabled(x=True, y=False)
         self.plot_widget.showGrid(x=True, y=False)
         self.plot_widget.plot(x, y, pen="y")
-        self.plot_widget.enableAutoRange(False) # Automatischer Zoom, damit die Daten gut sichtbar sind
+        self.plot_widget.enableAutoRange(
+            False
+        )  # Automatischer Zoom, damit die Daten gut sichtbar sind
         layout.addWidget(self.plot_widget)
         self.setLayout(layout)
+
 
 class LogDialog(QDialog):
     def __init__(self, parent=None):
@@ -106,6 +109,7 @@ class LogDialog(QDialog):
 
     def append(self, text):
         self.log_view.append(text)
+
 
 class ComplexResultsDialog(QDialog):
     def __init__(self, mic_results, parent=None):
@@ -135,10 +139,13 @@ class ComplexResultsDialog(QDialog):
         mic_row = QHBoxLayout()
 
         mic_max = max(
-            abs((mic_results["P1"] * 1e6).real), abs((mic_results["P1"] * 1e6).imag),
-            abs((mic_results["P2"] * 1e6).real), abs((mic_results["P2"] * 1e6).imag),
-            abs((mic_results["P3"] * 1e6).real), abs((mic_results["P3"] * 1e6).imag),
-            1.0
+            abs((mic_results["P1"] * 1e6).real),
+            abs((mic_results["P1"] * 1e6).imag),
+            abs((mic_results["P2"] * 1e6).real),
+            abs((mic_results["P2"] * 1e6).imag),
+            abs((mic_results["P3"] * 1e6).real),
+            abs((mic_results["P3"] * 1e6).imag),
+            1.0,
         )
 
         for i in range(3):
@@ -154,15 +161,12 @@ class ComplexResultsDialog(QDialog):
             plot.setFixedSize(plot_size, plot_size)
 
             # Nicht vom Layout strecken lassen
-            plot.setSizePolicy(
-                QSizePolicy.Fixed,
-                QSizePolicy.Fixed
-            )
+            plot.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
             # Datenachsen 1:1 halten
             plot.setAspectLocked(True, ratio=1)
             plot.getViewBox().setAspectLocked(True, ratio=1)
-            
+
             plot.setLabel("bottom", "Realteil [µV]")
             plot.setLabel("left", "Imaginärteil [µV]")
             plot.showGrid(x=True, y=True)
@@ -178,7 +182,15 @@ class ComplexResultsDialog(QDialog):
             P_plot = P * 1e6
 
             plot.plot([0, P_plot.real], [0, P_plot.imag], pen="r")
-            plot.plot([P_plot.real], [P_plot.imag], pen="r", symbol="o", symbolSize=15, symbolBrush="r",thickness=3)
+            plot.plot(
+                [P_plot.real],
+                [P_plot.imag],
+                pen="r",
+                symbol="o",
+                symbolSize=15,
+                symbolBrush="r",
+                thickness=3,
+            )
 
             # Für alle drei Plots dieselbe quadratische Skala
             plot_limit = 2.0 * mic_max
@@ -202,7 +214,6 @@ class ComplexResultsDialog(QDialog):
                 f"Phasenverschiebung in Rad = {mic_results[f'phase_shift{i+1}']:.6f} rad\n"
                 f"Phasenverschiebung in Grad = {mic_results[f'phase_shift_deg{i+1}']:.2f}°\n"
                 f"Zeitverschiebung = {mic_results[f'time_shift_ms{i+1}']:.3f} ms\n\n"
-                
             )
             info.setStyleSheet("font-size: 16px; padding: 8px; background: white;")
             box_layout.addWidget(info)
@@ -212,6 +223,7 @@ class ComplexResultsDialog(QDialog):
 
         layout.addLayout(mic_row)
         self.setLayout(layout)
+
 
 class StartScreen(QWidget):
     def __init__(self, parent=None):
@@ -230,7 +242,9 @@ class StartScreen(QWidget):
 
         layout.addStretch()
 
-        self.auto_button = QPushButton("Automatische Messung\n(Generator + Audio-Interface)")
+        self.auto_button = QPushButton(
+            "Automatische Messung\n(Generator + Audio-Interface)"
+        )
         self.auto_button.setMinimumHeight(80)
         self.auto_button.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(self.auto_button)
@@ -419,10 +433,16 @@ class SignalAnalysisScreen(QWidget):
         self.window_seconds = WINDOW_SECONDS
         self.live_elapsed_samples = 0
 
-        self.plot_buffers = [] # Speicher für die Zeitplots, wird bei Start oder Aufnahme aktualisiert
-        self.time_axis = np.array([], dtype=np.float32) # Zeitachse für die Zeitplots, wird bei Start oder Aufnahme aktualisiert    
+        self.plot_buffers = (
+            []
+        )  # Speicher für die Zeitplots, wird bei Start oder Aufnahme aktualisiert
+        self.time_axis = np.array(
+            [], dtype=np.float32
+        )  # Zeitachse für die Zeitplots, wird bei Start oder Aufnahme aktualisiert
         self.time_plot_widgets = []
-        self.time_plot_curves = [] # Referenzen auf die PlotDataItem-Objekte der Zeitplots, damit wir die Daten schnell aktualisieren können
+        self.time_plot_curves = (
+            []
+        )  # Referenzen auf die PlotDataItem-Objekte der Zeitplots, damit wir die Daten schnell aktualisieren können
 
         self.fft_freq_axis = np.array([], dtype=np.float32)
         self.fft_buffers = []
@@ -442,7 +462,6 @@ class SignalAnalysisScreen(QWidget):
         self._connect_signals()
         self._reset_plot_storage()
         self.refresh_focusrite_devices()
-        
 
     def _build_ui(self):
         main_layout = QVBoxLayout()
@@ -453,7 +472,6 @@ class SignalAnalysisScreen(QWidget):
         self.back_button.setMaximumWidth(220)
         top_layout.addWidget(self.back_button)
         top_layout.addStretch()
-        
 
         group = QGroupBox("Signalquelle und Eingang")
         group_layout = QVBoxLayout()
@@ -472,7 +490,9 @@ class SignalAnalysisScreen(QWidget):
         row1.addStretch()
 
         row2 = QHBoxLayout()
-        self.device_combo = QComboBox() # Wird später mit den verfügbaren Focusrite-Eingabegeräten gefüllt
+        self.device_combo = (
+            QComboBox()
+        )  # Wird später mit den verfügbaren Focusrite-Eingabegeräten gefüllt
         self.refresh_focusrite_button = QPushButton("Eingabegeräte aktualisieren")
         row2.addWidget(QLabel("Eingabegerät"))
         row2.addWidget(self.device_combo)
@@ -484,13 +504,12 @@ class SignalAnalysisScreen(QWidget):
         self.record_button = QPushButton("1 s aufnehmen")
         self.show_log_button = QPushButton("Log anzeigen")
         self.show_results_button = QPushButton("Ergebnisse anzeigen")
-
         row3.addWidget(self.audio_start_button)
         row3.addWidget(self.audio_stop_button)
         row3.addWidget(self.record_button)
         row3.addWidget(self.show_log_button)
         row3.addWidget(self.show_results_button)
-        
+
         group_layout.addLayout(row1)
         group_layout.addLayout(row2)
         group_layout.addLayout(row3)
@@ -540,27 +559,27 @@ class SignalAnalysisScreen(QWidget):
         self.setLayout(main_layout)
 
     def _connect_signals(self):
-                self.source_combo.currentTextChanged.connect(self.on_source_changed)
-                self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
-                self.audio_start_button.clicked.connect(self.start_audio)
-                self.audio_stop_button.clicked.connect(self.stop_audio)
-                self.record_button.clicked.connect(lambda: self.record_for_time(MEASUREMENT_DURATION))
-                self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
-                self.show_log_button.clicked.connect(self.show_log_window)
-                self.show_results_button.clicked.connect(self.show_results_window)
+        self.source_combo.currentTextChanged.connect(self.on_source_changed)
+        self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
+        self.audio_start_button.clicked.connect(self.start_audio)
+        self.audio_stop_button.clicked.connect(self.stop_audio)
+        self.record_button.clicked.connect(
+            lambda: self.record_for_time(MEASUREMENT_DURATION)
+        )
+        self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
+        self.show_log_button.clicked.connect(self.show_log_window)
+        self.show_results_button.clicked.connect(self.show_results_window)
 
     def show_results_window(self):
-            if not hasattr(self, "results_dialog") or self.results_dialog is None:
-                QMessageBox.information(
-                    self,
-                    "Keine Ergebnisse",
-                    "Bitte zuerst eine Messung aufnehmen."
-                )
-                return
+        if not hasattr(self, "results_dialog") or self.results_dialog is None:
+            QMessageBox.information(
+                self, "Keine Ergebnisse", "Bitte zuerst eine Messung aufnehmen."
+            )
+            return
 
-            self.results_dialog.show()
-            self.results_dialog.raise_()
-            self.results_dialog.activateWindow()  
+        self.results_dialog.show()
+        self.results_dialog.raise_()
+        self.results_dialog.activateWindow()
 
     def show_log_window(self):
         self.log_dialog.show()
@@ -596,15 +615,21 @@ class SignalAnalysisScreen(QWidget):
 
     def _generate_simulated_signal(self):
         sample_rate = self._get_sample_rate()
-        n = int(round(sample_rate * MEASUREMENT_DURATION)) # Anzahl Samples für 1 Sekunde
-        t = np.arange(n, dtype=np.float64) / sample_rate # Zeitvektor für 1 Sekunde
+        n = int(
+            round(sample_rate * MEASUREMENT_DURATION)
+        )  # Anzahl Samples für 1 Sekunde
+        t = np.arange(n, dtype=np.float64) / sample_rate  # Zeitvektor für 1 Sekunde
 
         f0 = self._get_f0()
-        k = 2.0 * np.pi * f0 / SPEED_OF_SOUND # Wellenzahl k = 2πf/c
+        k = 2.0 * np.pi * f0 / SPEED_OF_SOUND  # Wellenzahl k = 2πf/c
 
         # Beispiel: bekannte hinlaufende und rücklaufende Welle
-        A_sim = 1.0e-4 * np.exp(1j * 0.2) # Einlaufende Welle mit Amplitude 1e-4 Pa und Phase 0.2 rad
-        B_sim = 3.0e-5 * np.exp(-1j * 0.7) # Rücklaufende Welle mit Amplitude 3e-5 Pa und Phase -0.7 rad
+        A_sim = 1.0e-4 * np.exp(
+            1j * 0.2
+        )  # Einlaufende Welle mit Amplitude 1e-4 Pa und Phase 0.2 rad
+        B_sim = 3.0e-5 * np.exp(
+            -1j * 0.7
+        )  # Rücklaufende Welle mit Amplitude 3e-5 Pa und Phase -0.7 rad
 
         positions = [MIC_X1, MIC_X2, MIC_X3]
         audio = np.zeros((n, self.num_channels), dtype=np.float64)
@@ -613,12 +638,18 @@ class SignalAnalysisScreen(QWidget):
         noise_level = 2.0e-6
 
         for ch, x in enumerate(positions):
-            P = A_sim * np.exp(-1j * k * x) + B_sim * np.exp(1j * k * x) # A* e^(-j k x) + B * e^(j k x)
-            amp = np.abs(P) /2 # 2, da die Amplitude der hinlaufenden oder rücklaufenden Welle jeweils nur die Hälfte der Gesamtamplitude ausmacht
-            phase = np.angle(P) # Phase der Gesamtwelle an diesem Mikrofon
+            P = A_sim * np.exp(-1j * k * x) + B_sim * np.exp(
+                1j * k * x
+            )  # A* e^(-j k x) + B * e^(j k x)
+            amp = (
+                np.abs(P) / 2
+            )  # 2, da die Amplitude der hinlaufenden oder rücklaufenden Welle jeweils nur die Hälfte der Gesamtamplitude ausmacht
+            phase = np.angle(P)  # Phase der Gesamtwelle an diesem Mikrofon
 
-            audio[:, ch] = amp * np.cos(2.0 * np.pi * f0 * t + phase) # + Rauschanteil
-            audio[:, ch] += noise_level * rng.standard_normal(n) # Weißes Rauschen mit definierter Amplitude
+            audio[:, ch] = amp * np.cos(2.0 * np.pi * f0 * t + phase)  # + Rauschanteil
+            audio[:, ch] += noise_level * rng.standard_normal(
+                n
+            )  # Weißes Rauschen mit definierter Amplitude
 
         return audio.astype(np.float32)
 
@@ -627,8 +658,7 @@ class SignalAnalysisScreen(QWidget):
         window_samples = max(2, int((self.window_seconds * sample_rate)))
 
         self.plot_buffers = [
-            np.zeros(window_samples, dtype=np.float32)
-            for _ in range(self.num_channels)
+            np.zeros(window_samples, dtype=np.float32) for _ in range(self.num_channels)
         ]
         # np.linspace(von 0.0, bis 1.0, Scritte 48000, endpoint=False)
         self.time_axis = np.linspace(
@@ -641,8 +671,7 @@ class SignalAnalysisScreen(QWidget):
 
         self.fft_freq_axis = np.array([], dtype=np.float32)
         self.fft_buffers = [
-            np.array([], dtype=np.float32)
-            for _ in range(self.num_channels)
+            np.array([], dtype=np.float32) for _ in range(self.num_channels)
         ]
 
         self._refresh_time_plots()
@@ -673,7 +702,7 @@ class SignalAnalysisScreen(QWidget):
             if self._using_simulation():
                 self.devices = []
                 self.device_combo.addItem("Simulation")
-                
+
                 return
 
             temp = FocusriteInterface()
@@ -685,7 +714,9 @@ class SignalAnalysisScreen(QWidget):
 
             for idx, name, ch in self.devices:
                 self.device_combo.addItem(f"Index {idx} | {ch} Eingänge | {name}")
-                self.log(f"Gefundenes Eingabegerät: index={idx}, name={name}, inputs={ch}")
+                self.log(
+                    f"Gefundenes Eingabegerät: index={idx}, name={name}, inputs={ch}"
+                )
 
             self.device_combo.setCurrentIndex(0)
             self.log("Eingabegeräte aktualisiert.")
@@ -763,7 +794,7 @@ class SignalAnalysisScreen(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
-            
+
     def stop_audio(self):
         try:
             self.timer.stop()
@@ -805,8 +836,10 @@ class SignalAnalysisScreen(QWidget):
         for ch in range(self.num_channels):
             self.plot_buffers[ch] = signal[start:end, ch]
             self.time_plot_curves[ch].setData(self.time_axis, self.plot_buffers[ch])
-            self.time_plot_widgets[ch].setXRange(0, display_samples / sample_rate, padding=0)
-            
+            self.time_plot_widgets[ch].setXRange(
+                0, display_samples / sample_rate, padding=0
+            )
+
     def log_microphone_results(self, m, f0):
         phase_ref = m["phase1"]
 
@@ -824,6 +857,7 @@ class SignalAnalysisScreen(QWidget):
                 f"({phase_shift_deg:.2f}°), "
                 f"Zeitverschiebung = {time_shift_ms:.3f} ms"
             )
+
     def log_forward_reflected_waves(self, m, f0):
         cfg = self._get_wave_config()
         freqs = np.array([f0], dtype=float)
@@ -860,7 +894,9 @@ class SignalAnalysisScreen(QWidget):
             duration = float(duration)
 
             if duration <= 0:
-                raise ValueError(f"Aufnahmedauer muss größer als 0 sein. duration={duration}")
+                raise ValueError(
+                    f"Aufnahmedauer muss größer als 0 sein. duration={duration}"
+                )
 
             self.timer.stop()
 
@@ -886,9 +922,7 @@ class SignalAnalysisScreen(QWidget):
                 signal = signal[:, np.newaxis]
 
             if signal.shape[0] < 2:
-                raise ValueError(
-                    f"Signal ist zu kurz. Samples={signal.shape[0]}"
-                )
+                raise ValueError(f"Signal ist zu kurz. Samples={signal.shape[0]}")
 
             if signal.shape[1] < self.num_channels:
                 raise ValueError(
@@ -910,7 +944,9 @@ class SignalAnalysisScreen(QWidget):
             self.log(f"Samples pro Mikrofon: {num_samples}")
             self.log(f"Sample-Rate: {sample_rate:.1f} Hz")
             self.log(f"Messfrequenz: {f0:.2f} Hz")
-            self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.1f} Hz")
+            self.log(
+                f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.1f} Hz"
+            )
 
             self.log("-" * 50)
 
@@ -933,7 +969,7 @@ class SignalAnalysisScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
             return None
-    
+
     def compute_fft_from_signal(self, signal):
         try:
             signal = np.asarray(signal, dtype=np.float64)
@@ -949,53 +985,60 @@ class SignalAnalysisScreen(QWidget):
 
             sample_rate = self._get_sample_rate()
             f0 = self._get_f0()
-            n = signal.shape[0] # Anzahl Samples, die in der Aufnahme enthalten sind (z.B. 48000 für 1 Sekunde bei 48 kHz)
+            n = signal.shape[
+                0
+            ]  # Anzahl Samples, die in der Aufnahme enthalten sind (z.B. 48000 für 1 Sekunde bei 48 kHz)
 
             if n < 2:
                 raise ValueError("Signal ist zu kurz für FFT.")
 
-            freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate) # Frequenzachsenwerte
+            freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate)  # Frequenzachsenwerte
             self.fft_freq_axis = freqs.astype(np.float32)
-            window = np.hanning(n) # Hanning-Fenster
-            window_norm = np.sum(window) # Normierungskonstante
+            window = np.hanning(n)  # Hanning-Fenster
+            window_norm = np.sum(window)  # Normierungskonstante
 
             self.fft_buffers = []
             f0_index = int(np.argmin(np.abs(freqs - f0)))
 
             for ch in range(self.num_channels):
-                
-                '''
-                    x = signal[:, ch]           # reelle Messwerte vom Mikrofon
-                    spectrum = np.fft.rfft(x)   # komplexe Frequenzwerte
-                    amp = np.abs(spectrum)      # Betrag / Amplitude
-                    phase = np.angle(spectrum)  # Phase
-                    np.abs(spectrum)            → Betrag der FFT
-                    2.0                         → Korrektur, weil nur positive Frequenzen
-                    /window_norm                → Korrektur wegen Hanning-Fenster
-                '''
+
+                """
+                x = signal[:, ch]           # reelle Messwerte vom Mikrofon
+                spectrum = np.fft.rfft(x)   # komplexe Frequenzwerte
+                amp = np.abs(spectrum)      # Betrag / Amplitude
+                phase = np.angle(spectrum)  # Phase
+                np.abs(spectrum)            → Betrag der FFT
+                2.0                         → Korrektur, weil nur positive Frequenzen
+                /window_norm                → Korrektur wegen Hanning-Fenster
+                """
 
                 x = signal[:, ch]
-                spectrum = np.fft.rfft(x * window) # Hanning-Fenster anwenden und FFT berechnen damit die Amplituden korrekt bleiben, 
+                spectrum = np.fft.rfft(
+                    x * window
+                )  # Hanning-Fenster anwenden und FFT berechnen damit die Amplituden korrekt bleiben,
 
-                '''
+                """
                 spectrum enthält für jede Frequenzlinie einen komplexen Wert:
                 Realteil + Imaginärteil j
-                '''
-                amp = 2.0 * np.abs(spectrum) / window_norm # da wir nur die positiven Frequenzen betrachten, müssen wir mit 2.0 multiplizieren, um die korrekte Amplitude zu erhalten
+                """
+                amp = (
+                    2.0 * np.abs(spectrum) / window_norm
+                )  # da wir nur die positiven Frequenzen betrachten, müssen wir mit 2.0 multiplizieren, um die korrekte Amplitude zu erhalten
                 self.fft_buffers.append(amp.astype(np.float32))
                 self.log(
                     f"Mikrofon {ch + 1},FFT-Amplitude bei {freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}"
                 )
-                
 
             self._refresh_fft_plots()
-            self.log("#" * 10) 
+            self.log("#" * 10)
             # 10 FFT-Werte um die Messfrequenz f0 loggen
             half_window = 5
             start_idx = max(0, f0_index - half_window)
             end_idx = min(len(freqs), f0_index + half_window + 1)
 
-            self.log(f"{'Index':>10} | {'Frequenz [Hz]':>18} | {'Abstand zu f0 [Hz]':>18} | {'Amplitude [V]':>18}")
+            self.log(
+                f"{'Index':>10} | {'Frequenz [Hz]':>18} | {'Abstand zu f0 [Hz]':>18} | {'Amplitude [V]':>18}"
+            )
             self.log("-" * 50)
 
             for idx in range(start_idx, end_idx):
@@ -1010,56 +1053,62 @@ class SignalAnalysisScreen(QWidget):
 
             self.log("-" * 50)
         except Exception as e:
-            QMessageBox.critical(self, "FFT-Fehler", str(e)) 
+            QMessageBox.critical(self, "FFT-Fehler", str(e))
 
     def update_audio_plot(self):
-            if self.focusrite is None:
-                return
+        if self.focusrite is None:
+            return
 
-            updated = False
+        updated = False
 
-            while not self.focusrite.audio_queue.empty():
-                kind, payload = self.focusrite.audio_queue.get()
+        while not self.focusrite.audio_queue.empty():
+            kind, payload = self.focusrite.audio_queue.get()
 
-                if kind == "status":
-                    self.log(f"Audio-Status: {payload}")
+            if kind == "status":
+                self.log(f"Audio-Status: {payload}")
+                continue
+
+            if kind == "audio":
+                chunk = np.asarray(payload, dtype=np.float32)
+
+                if chunk.ndim == 1:
+                    chunk = chunk[:, np.newaxis]
+
+                if chunk.shape[1] < self.num_channels:
+                    self.log(f"Warnung: nur {chunk.shape[1]} Kanäle empfangen.")
                     continue
 
-                if kind == "audio":
-                    chunk = np.asarray(payload, dtype=np.float32)
+                self.last_chunk = chunk
+                self.last_mode = "live"
 
-                    if chunk.ndim == 1:
-                        chunk = chunk[:, np.newaxis]
+                # Für Live: letzte Samples direkt anzeigen
+                f0 = self._get_f0()
+                sample_rate = self._get_sample_rate()
 
-                    if chunk.shape[1] < self.num_channels:
-                        self.log(f"Warnung: nur {chunk.shape[1]} Kanäle empfangen.")
-                        continue
+                display_seconds = DISPLAY_PERIODS / f0
+                display_samples = int(round(display_seconds * sample_rate))
+                display_samples = max(2, min(display_samples, chunk.shape[0]))
 
-                    self.last_chunk = chunk
-                    self.last_mode = "live"
+                self.time_axis = (
+                    np.arange(display_samples, dtype=np.float32) / sample_rate
+                )
 
-                    # Für Live: letzte Samples direkt anzeigen
-                    f0 = self._get_f0()
-                    sample_rate = self._get_sample_rate()
+                for ch in range(self.num_channels):
+                    self.plot_buffers[ch] = chunk[-display_samples:, ch]
+                    self.time_plot_curves[ch].setData(
+                        self.time_axis, self.plot_buffers[ch]
+                    )
+                    self.time_plot_widgets[ch].setXRange(0, display_seconds, padding=0)
 
-                    display_seconds = DISPLAY_PERIODS / f0
-                    display_samples = int(round(display_seconds * sample_rate))
-                    display_samples = max(2, min(display_samples, chunk.shape[0]))
+                updated = True
 
-                    self.time_axis = np.arange(display_samples, dtype=np.float32) / sample_rate
-
-                    for ch in range(self.num_channels):
-                        self.plot_buffers[ch] = chunk[-display_samples:, ch]
-                        self.time_plot_curves[ch].setData(self.time_axis, self.plot_buffers[ch])
-                        self.time_plot_widgets[ch].setXRange(0, display_seconds, padding=0)
-
-                    updated = True
-
-            if updated:
-                self._refresh_time_plots()
+        if updated:
+            self._refresh_time_plots()
 
     def measure_at_frequency_local(self, signal, f0):
-        signal = np.asarray(signal, dtype=np.float64).flatten() # Sicherstellen, dass es ein 1D-Array ist
+        signal = np.asarray(
+            signal, dtype=np.float64
+        ).flatten()  # Sicherstellen, dass es ein 1D-Array ist
 
         if signal.size == 0:
             raise ValueError("Leeres Signal.")
@@ -1067,15 +1116,23 @@ class SignalAnalysisScreen(QWidget):
         if f0 <= 0:
             raise ValueError("f0 muss größer als 0 sein.")
 
-        n = signal.size # Anzahl Samples im Signal (z.B. 48000 für 1 Sekunde bei 48 kHz)
-        t = np.arange(n, dtype=np.float64) / self._get_sample_rate() # Zeitachse für die Samples
+        n = (
+            signal.size
+        )  # Anzahl Samples im Signal (z.B. 48000 für 1 Sekunde bei 48 kHz)
+        t = (
+            np.arange(n, dtype=np.float64) / self._get_sample_rate()
+        )  # Zeitachse für die Samples
 
-        ref = np.exp(-1j * 2.0 * np.pi * f0 * t) # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
-        P = (2.0 / n) * np.sum(signal * ref) # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung (siehe FFT-Berechnung)
+        ref = np.exp(
+            -1j * 2.0 * np.pi * f0 * t
+        )  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
+        P = (2.0 / n) * np.sum(
+            signal * ref
+        )  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung (siehe FFT-Berechnung)
 
         amplitude = np.abs(P)
         phase = np.angle(P)
-        rms = np.sqrt(np.mean(signal ** 2))
+        rms = np.sqrt(np.mean(signal**2))
 
         return P, amplitude, phase, rms
 
@@ -1096,13 +1153,20 @@ class SignalAnalysisScreen(QWidget):
         P3, amp3, phase3, rms3 = self.measure_at_frequency_local(signal[:, 2], f0)
 
         return {
-            "P1": P1, "P2": P2, "P3": P3,
-            "amp1": amp1, "amp2": amp2, "amp3": amp3,
-            "phase1": phase1, "phase2": phase2, "phase3": phase3,
-            "rms1": rms1, "rms2": rms2, "rms3": rms3,
+            "P1": P1,
+            "P2": P2,
+            "P3": P3,
+            "amp1": amp1,
+            "amp2": amp2,
+            "amp3": amp3,
+            "phase1": phase1,
+            "phase2": phase2,
+            "phase3": phase3,
+            "rms1": rms1,
+            "rms2": rms2,
+            "rms3": rms3,
         }
 
-    
     def open_time_window(self, ch):
         if ch < 0 or ch >= self.num_channels:
             return
@@ -1167,7 +1231,7 @@ class SignalAnalysisScreen(QWidget):
             result[f"time_shift_ms{i}"] = time_shift_ms
 
         return result
-    
+
     def compute_forward_reflected_results(self, m, f0):
         cfg = self._get_wave_config()
         freqs = np.array([f0], dtype=float)
@@ -1193,7 +1257,8 @@ class SignalAnalysisScreen(QWidget):
             "B_over_A": np.abs(B0) / (np.abs(A0) + 1e-12),
             "residual": residual[0],
         }
-    
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -1214,11 +1279,19 @@ class MainWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        self.start_screen.generator_button.clicked.connect(lambda: self.stack.setCurrentIndex(1))
-        self.start_screen.signal_button.clicked.connect(lambda: self.stack.setCurrentIndex(2))
+        self.start_screen.generator_button.clicked.connect(
+            lambda: self.stack.setCurrentIndex(1)
+        )
+        self.start_screen.signal_button.clicked.connect(
+            lambda: self.stack.setCurrentIndex(2)
+        )
 
-        self.generator_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
-        self.signal_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        self.generator_screen.back_button.clicked.connect(
+            lambda: self.stack.setCurrentIndex(0)
+        )
+        self.signal_screen.back_button.clicked.connect(
+            lambda: self.stack.setCurrentIndex(0)
+        )
         self.start_screen.auto_button.clicked.connect(self.run_automatic_measurement)
 
     def run_automatic_measurement(self):
@@ -1229,7 +1302,7 @@ class MainWindow(QWidget):
                 QMessageBox.warning(
                     self,
                     "Generator nicht verbunden",
-                    "Bitte zuerst den Generator auf der Generator-Seite verbinden."
+                    "Bitte zuerst den Generator auf der Generator-Seite verbinden.",
                 )
                 return
 
@@ -1240,7 +1313,9 @@ class MainWindow(QWidget):
                 raise ValueError("Generatorfrequenz muss größer als 0 Hz sein.")
 
             if voltage <= 0 or voltage > MAX_GENERATOR_VOLTAGE:
-                raise ValueError("Generatorspannung muss größer 0 und maximal 1.0 V sein.")
+                raise ValueError(
+                    "Generatorspannung muss größer 0 und maximal 1.0 V sein."
+                )
 
             self.signal_screen.current_f0 = f0
             self.signal_screen.source_combo.setCurrentText(SOURCE_SCARLETT)
@@ -1258,12 +1333,14 @@ class MainWindow(QWidget):
 
                 self.signal_screen.log("-" * 100)
                 self.signal_screen.log(f"Automatik Schritt {step}")
-                self.signal_screen.log(f"Generator: f = {f0:.2f} Hz, U = {voltage:.4f} V")
+                self.signal_screen.log(
+                    f"Generator: f = {f0:.2f} Hz, U = {voltage:.4f} V"
+                )
                 m = self.signal_screen.record_for_time()
 
                 if m is None:
                     raise RuntimeError("Messung fehlgeschlagen.")
-                
+
                 wave = self.signal_screen.compute_forward_reflected_results(m, f0)
                 measured_A_abs = wave["A_abs"]
 
@@ -1274,7 +1351,9 @@ class MainWindow(QWidget):
                 )
 
                 self.signal_screen.log(f"Ziel-Amplitude |A| = {TARGET_AMP:.6e}")
-                self.signal_screen.log(f"Gemessene hinlaufende Welle |A| = {measured_A_abs:.6e}")
+                self.signal_screen.log(
+                    f"Gemessene hinlaufende Welle |A| = {measured_A_abs:.6e}"
+                )
                 self.signal_screen.log(f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}")
                 self.signal_screen.log(f"Relativer Fehler = {relative_error:.3f}")
 
@@ -1296,7 +1375,6 @@ class MainWindow(QWidget):
 
             self.signal_screen.record_for_time()
             generator.output_off()
-            
 
         except Exception as e:
             try:
@@ -1306,7 +1384,7 @@ class MainWindow(QWidget):
                 pass
 
             QMessageBox.critical(self, "Automatik-Fehler", str(e))
-            
+
     def closeEvent(self, event):
         try:
             self.generator_screen.cleanup()
@@ -1324,4 +1402,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

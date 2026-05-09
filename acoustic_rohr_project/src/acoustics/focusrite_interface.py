@@ -2,13 +2,9 @@ import queue
 import numpy as np
 import sounddevice as sd
 
+
 class FocusriteInterface:
-    def __init__(
-            self,
-            sample_rate=48000,
-            device=None,
-            dtype="float32",
-            channels=3):
+    def __init__(self, sample_rate=48000, device=None, dtype="float32", channels=3):
         self.sample_rate = int(sample_rate)
         self.device = device
         self.dtype = dtype
@@ -102,7 +98,7 @@ class FocusriteInterface:
         if status:
             self.audio_queue.put(("status", str(status)))
 
-        chunk = indata[:, :self.channels].copy()
+        chunk = indata[:, : self.channels].copy()
         self.audio_queue.put(("audio", chunk))
 
     def stop_input_stream(self):
@@ -110,4 +106,3 @@ class FocusriteInterface:
             self.stream.stop()
             self.stream.close()
             self.stream = None
-
