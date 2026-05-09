@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+import wave
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QStackedWidget,
     QDialog,
+    QSizePolicy
 )
 
 from generator_interface import TektronixAFG320
@@ -107,7 +109,7 @@ class ComplexResultsDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        title = QLabel("Komplexe Darstellung der drei Mikrofone")
+        title = QLabel("komplexe Schalldruck-Amplituden der Mikrofone (P)")
         title.setStyleSheet("font-size: 22px; font-weight: bold; margin: 10px;")
         layout.addWidget(title)
 
@@ -116,18 +118,40 @@ class ComplexResultsDialog(QDialog):
         # -----------------------------
         mic_row = QHBoxLayout()
 
+        mic_max = max(
+            abs((mic_results["P1"] * 1e6).real), abs((mic_results["P1"] * 1e6).imag),
+            abs((mic_results["P2"] * 1e6).real), abs((mic_results["P2"] * 1e6).imag),
+            abs((mic_results["P3"] * 1e6).real), abs((mic_results["P3"] * 1e6).imag),
+            1.0
+        )
+
         for i in range(3):
             box = QGroupBox(f"Mikrofon {i+1}")
             box_layout = QVBoxLayout()
 
-            plot = pg.PlotWidget(title=f"P{i + 1} im komplexen Diagramm")
+            plot = pg.PlotWidget(title=f"P{i + 1}")
 
-            plot.setMinimumSize(420, 420)
+            # Plot-Fenster wirklich quadratisch halten
+            plot_size = 430
+            plot.setMinimumSize(plot_size, plot_size)
+            plot.setMaximumSize(plot_size, plot_size)
+            plot.setFixedSize(plot_size, plot_size)
+
+            # Nicht vom Layout strecken lassen
+            plot.setSizePolicy(
+                QSizePolicy.Fixed,
+                QSizePolicy.Fixed
+            )
+
+            # Datenachsen 1:1 halten
             plot.setAspectLocked(True, ratio=1)
+            plot.getViewBox().setAspectLocked(True, ratio=1)
+            
             plot.setLabel("bottom", "Realteil [µV]")
             plot.setLabel("left", "Imaginärteil [µV]")
             plot.showGrid(x=True, y=True)
             plot.setMouseEnabled(x=False, y=False)
+
             # Null-Linien
             vline = pg.InfiniteLine(pos=0, angle=90)
             hline = pg.InfiniteLine(pos=0, angle=0)
@@ -137,26 +161,36 @@ class ComplexResultsDialog(QDialog):
             P = mic_results[f"P{i+1}"]
             P_plot = P * 1e6
 
-            plot.plot([0, P_plot.real], [0, P_plot.imag], pen="y")
-            plot.plot([P_plot.real], [P_plot.imag], pen=None, symbol="o", symbolSize=10)
+            plot.plot([0, P_plot.real], [0, P_plot.imag], pen="r")
+            plot.plot([P_plot.real], [P_plot.imag], pen="r", symbol="o", symbolSize=15, symbolBrush="r",thickness=3)
 
-            max_val = max(abs(P_plot.real), abs(P_plot.imag), 1.0)
-            plot.setXRange(-1.5 * max_val, 1.5 * max_val)
-            plot.setYRange(-1.5 * max_val, 1.5 * max_val)
+            # Für alle drei Plots dieselbe quadratische Skala
+            plot_limit = 2.0 * mic_max
+            plot.setXRange(-plot_limit, plot_limit, padding=0)
+            plot.setYRange(-plot_limit, plot_limit, padding=0)
+            plot.enableAutoRange(x=False, y=False)
 
             box_layout.addWidget(plot)
 
             info = QLabel()
+            P = mic_results[f"P{i+1}"]
+            P_uv = P * 1e6
+
             info.setText(
-                f"|P{i+1}| = {mic_results[f'amp{i+1}']:.6e}\n"
+                f"Spektrum bei P{i+1}​(f0​) = {P_uv.real:.3f} + j ({P_uv.imag:.3f}) µV\n"
+                f"Realteil = {P_uv.real:.3f} µV\n"
+                f"Imaginärteil = {P_uv.imag:.3f} µV\n"
+                f"Betrag = {abs(P_uv):.3f} µV\n"
                 f"Phase = {mic_results[f'phase{i+1}']:.6f} rad\n"
-                f"RMS = {mic_results[f'rms{i+1}']:.6e}\n"
-                f"Phasenverschiebung = {mic_results[f'phase_shift{i+1}']:.6f} rad\n"
-                f"Phasenverschiebung = {mic_results[f'phase_shift_deg{i+1}']:.2f}°\n"
-                f"Zeitverschiebung = {mic_results[f'time_shift_ms{i+1}']:.3f} ms"
+                f"RMS = {mic_results[f'rms{i+1}']:.6e} V\n"
+                f"Phasenverschiebung in Rad = {mic_results[f'phase_shift{i+1}']:.6f} rad\n"
+                f"Phasenverschiebung in Grad = {mic_results[f'phase_shift_deg{i+1}']:.2f}°\n"
+                f"Zeitverschiebung = {mic_results[f'time_shift_ms{i+1}']:.3f} ms\n\n"
+                
             )
-            info.setStyleSheet("font-size: 14px; padding: 6px; background: white;")
+            info.setStyleSheet("font-size: 16px; padding: 8px; background: white;")
             box_layout.addWidget(info)
+
             box.setLayout(box_layout)
             mic_row.addWidget(box)
 
@@ -796,7 +830,7 @@ class SignalAnalysisScreen(QWidget):
         self.log(f"B = {B0}")
         self.log(f"|B| = {np.abs(B0):.6e}")
         self.log(f"Phase B = {np.angle(B0):.6f} rad")
-        self.log(f"|B| / |A| = {np.abs(B0) / (np.abs(A0) + 1e-12):.6f}")
+        self.log(f"Reflexion |B| / |A| = {np.abs(B0) / (np.abs(A0) + 1e-12):.6f}")
         self.log(f"Residuum = {residual[0]:.6e}")
 
     def record_for_time(self, duration=None):
@@ -1053,8 +1087,6 @@ class SignalAnalysisScreen(QWidget):
             "rms1": rms1, "rms2": rms2, "rms3": rms3,
         }
 
- 
-
     
     def open_time_window(self, ch):
         if ch < 0 or ch >= self.num_channels:
@@ -1217,7 +1249,8 @@ class MainWindow(QWidget):
                 if m is None:
                     raise RuntimeError("Messung fehlgeschlagen.")
                 
-                measured_amp = mean_microphone_amplitude(m)
+                wave = self.signal_screen.compute_forward_reflected_results(m, f0)
+                measured_amp = wave["A_abs"]
 
                 ok, relative_error = amplitude_reached_target(
                     measured_amp,
@@ -1225,8 +1258,9 @@ class MainWindow(QWidget):
                     AMP_TOLERANCE,
                 )
 
-                self.signal_screen.log(f"Ziel-Amplitude = {TARGET_AMP:.6e}")
-                self.signal_screen.log(f"Gemessene mittlere Amplitude = {measured_amp:.6e}")
+                self.signal_screen.log(f"Ziel-Amplitude |A| = {TARGET_AMP:.6e}")
+                self.signal_screen.log(f"Gemessene hinlaufende Welle |A| = {measured_amp:.6e}")
+                self.signal_screen.log(f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}")
                 self.signal_screen.log(f"Relativer Fehler = {relative_error:.3f}")
 
                 if ok:
