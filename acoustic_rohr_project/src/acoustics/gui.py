@@ -150,7 +150,7 @@ class ComplexResultsDialog(QDialog):
             plot.setLabel("bottom", "Realteil [µV]")
             plot.setLabel("left", "Imaginärteil [µV]")
             plot.showGrid(x=True, y=True)
-            plot.setMouseEnabled(x=False, y=False)
+            plot.setMouseEnabled(x=True, y=True)
 
             # Null-Linien
             vline = pg.InfiniteLine(pos=0, angle=90)
@@ -938,11 +938,10 @@ class SignalAnalysisScreen(QWidget):
             if n < 2:
                 raise ValueError("Signal ist zu kurz für FFT.")
 
-            freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate) # Frequenzachsenwerte für die FFT (z.B. 0, 1, 2, ..., 24000 Hz bei 48 kHz und n=48000)
+            freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate) # Frequenzachsenwerte
             self.fft_freq_axis = freqs.astype(np.float32)
-
-            window = np.hanning(n) # Hanning-Fenster zur Reduzierung von Spektralleckagen
-            window_norm = np.sum(window) # Normierungskonstante, damit die Amplituden korrekt bleiben (Summe des Fensters)
+            window = np.hanning(n) # Hanning-Fenster
+            window_norm = np.sum(window) # Normierungskonstante
 
             self.fft_buffers = []
             f0_index = int(np.argmin(np.abs(freqs - f0)))
