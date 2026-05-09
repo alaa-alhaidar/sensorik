@@ -912,20 +912,20 @@ class SignalAnalysisScreen(QWidget):
             self.log(f"Samples pro Mikrofon: {num_samples}")
             self.log(f"Sample-Rate: {sample_rate:.1f} Hz")
             self.log(f"Messfrequenz: {f0:.2f} Hz")
-            self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
+            self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.1f} Hz")
 
-            self.log("-" * 100)
+            self.log("-" * 50)
 
             m = self.measure_three_mics_at_frequency_local(signal, f0)
 
             self.log_microphone_results(m, f0)
-            self.log("-" * 100)
+            self.log("-" * 50)
 
             self.log_forward_reflected_waves(m, f0)
-            self.log("-" * 100)
+            self.log("-" * 50)
 
             self.compute_fft_from_signal(signal)
-            self.log("#" * 100)
+            self.log("#" * 10)
 
             mic_results = self.build_mic_result_dict(m, f0)
             self.results_dialog = ComplexResultsDialog(mic_results, parent=self)
@@ -991,14 +991,14 @@ class SignalAnalysisScreen(QWidget):
                 
 
             self._refresh_fft_plots()
-            self.log("#" * 100) 
+            self.log("#" * 10) 
             # 10 FFT-Werte um die Messfrequenz f0 loggen
             half_window = 5
             start_idx = max(0, f0_index - half_window)
             end_idx = min(len(freqs), f0_index + half_window + 1)
 
             self.log(f"{'Index':>10} | {'Frequenz [Hz]':>18} | {'Abstand zu f0 [Hz]':>18} | {'Amplitude [V]':>18}")
-            self.log("-" * 100)
+            self.log("-" * 50)
 
             for idx in range(start_idx, end_idx):
                 freq = freqs[idx]
@@ -1010,7 +1010,7 @@ class SignalAnalysisScreen(QWidget):
                     f"{amp[idx]:18.6e}"
                 )
 
-            self.log("-" * 100)
+            self.log("-" * 50)
         except Exception as e:
             QMessageBox.critical(self, "FFT-Fehler", str(e)) 
 
