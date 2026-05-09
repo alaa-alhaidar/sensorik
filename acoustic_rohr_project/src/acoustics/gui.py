@@ -88,9 +88,17 @@ class LogDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Log")
-        self.resize(1400, 700)
+        self.resize(1500, 1000)
 
         layout = QVBoxLayout()
+        top_layout = QHBoxLayout()
+        self.back_button = QPushButton("← Zurück")
+        self.back_button.setMaximumWidth(220)
+        self.back_button.clicked.connect(self.close)
+
+        top_layout.addWidget(self.back_button)
+        top_layout.addStretch()
+        layout.addLayout(top_layout)
 
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
@@ -105,12 +113,22 @@ class ComplexResultsDialog(QDialog):
     def __init__(self, mic_results, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Messergebnisse")
-        self.resize(1500, 900)
+        self.resize(1500, 1000)
 
         layout = QVBoxLayout()
+        top_layout = QHBoxLayout()
+
+        self.back_button = QPushButton("← Zurück")
+        self.back_button.setMaximumWidth(220)
+        self.back_button.clicked.connect(self.close)
+
+        top_layout.addWidget(self.back_button)
+        top_layout.addStretch()
+
+        layout.addLayout(top_layout)
 
         title = QLabel("komplexe Schalldruck-Amplituden der Mikrofone (P)")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; margin: 10px;")
+        title.setStyleSheet("font-size: 22px;")
         layout.addWidget(title)
 
         # -----------------------------
