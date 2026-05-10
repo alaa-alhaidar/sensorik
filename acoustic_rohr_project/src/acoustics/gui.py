@@ -55,7 +55,7 @@ SOURCE_SCARLETT = "Audio-Interface"
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
-MEASUREMENT_DURATION = 1.0
+MEASUREMENT_DURATION = 10.0
 WINDOW_SECONDS = MEASUREMENT_DURATION
 DISPLAY_PERIODS = 5
 
@@ -534,7 +534,7 @@ class SignalAnalysisScreen(QWidget):
         row3 = QHBoxLayout()
         self.audio_start_button = QPushButton("Live Start")
         self.audio_stop_button = QPushButton("Stop")
-        self.record_button = QPushButton("1 s aufnehmen")
+        self.record_button = QPushButton("Aufnahme starten")
         self.show_log_button = QPushButton("Log anzeigen")
         self.show_results_button = QPushButton("Ergebnisse anzeigen")
         row3.addWidget(self.audio_start_button)
@@ -646,11 +646,11 @@ class SignalAnalysisScreen(QWidget):
 
         return float(self.current_f0)
 
-    def _generate_simulated_signal(self):
+    def _generate_simulated_signal(self, duration=MEASUREMENT_DURATION):
         sample_rate = self._get_sample_rate()
-        n = int(
-            round(sample_rate * MEASUREMENT_DURATION)
-        )  # Anzahl Samples für 1 Sekunde
+        duration = float(duration)
+        n = int(round(sample_rate * duration))
+
         t = np.arange(n, dtype=np.float64) / sample_rate  # Zeitvektor für 1 Sekunde
 
         f0 = self._get_f0()
@@ -938,7 +938,7 @@ class SignalAnalysisScreen(QWidget):
                 self.focusrite = None
 
             if self._using_simulation():
-                signal = self._generate_simulated_signal()
+                signal = self._generate_simulated_signal(duration)
             else:
                 self.focusrite = self._create_focusrite()
                 signal = self.focusrite.record_input(duration=duration)
