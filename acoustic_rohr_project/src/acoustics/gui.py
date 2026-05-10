@@ -6,6 +6,7 @@ CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
+from matplotlib import category
 import numpy as np
 import pyqtgraph as pg
 
@@ -30,7 +31,11 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QDialog,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
+
 
 from generator_interface import TektronixAFG320
 from focusrite_interface import FocusriteInterface
@@ -92,7 +97,9 @@ class LogDialog(QDialog):
         self.resize(1500, 1000)
 
         layout = QVBoxLayout()
+
         top_layout = QHBoxLayout()
+
         self.back_button = QPushButton("← Zurück")
         self.back_button.setMaximumWidth(220)
         self.back_button.clicked.connect(self.close)
@@ -101,14 +108,40 @@ class LogDialog(QDialog):
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
-        self.log_view = QTextEdit()
-        self.log_view.setReadOnly(True)
+        self.log_table = QTableWidget()
+        self.log_table.setColumnCount(3)
+        self.log_table.setHorizontalHeaderLabels(["Nr.", "Kategorie", "Meldung"])
+        self.log_table.verticalHeader().setVisible(False)
+        self.log_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
 
-        layout.addWidget(self.log_view)
+        self.log_table.setAlternatingRowColors(True)
+        self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        layout.addWidget(self.log_table)
         self.setLayout(layout)
 
-    def append(self, text):
-        self.log_view.append(text)
+    def append(self, text, category="Info"):
+        row = self.log_table.rowCount()
+        self.log_table.insertRow(row)
+
+        if category == "title":
+            item = QTableWidgetItem(str(text))
+            item.setTextAlignment(Qt.AlignCenter)
+            item.setBackground(Qt.blue)
+            item.setForeground(Qt.white)
+
+            self.log_table.setSpan(row, 0, 1, 3)
+            self.log_table.setItem(row, 0, item)
+            self.log_table.scrollToBottom()
+            return
+
+        self.log_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+        self.log_table.setItem(row, 1, QTableWidgetItem(category))
+        self.log_table.setItem(row, 2, QTableWidgetItem(str(text)))
+
+        self.log_table.scrollToBottom()
 
 
 class ComplexResultsDialog(QDialog):
@@ -586,8 +619,8 @@ class SignalAnalysisScreen(QWidget):
         self.log_dialog.raise_()
         self.log_dialog.activateWindow()
 
-    def log(self, text):
-        self.log_dialog.append(text)
+    def log(self, text, category="Info"):
+        self.log_dialog.append(text, category)
 
     def on_source_changed(self):
         self.refresh_focusrite_devices()
@@ -842,12 +875,12 @@ class SignalAnalysisScreen(QWidget):
 
     def log_microphone_results(self, m, f0):
         phase_ref = m["phase1"]
-
+        self.log("Messergebnisse", category="title")
         for i in range(1, self.num_channels + 1):
             phase_shift = m[f"phase{i}"] - phase_ref
             phase_shift_deg = np.degrees(phase_shift)
             time_shift_ms = phase_shift / (2.0 * np.pi * f0) * 1000.0
-
+            
             self.log(
                 f"Mikrofon {i}: "
                 f"|P{i}| = {m[f'amp{i}']:.6e}, "
@@ -873,7 +906,7 @@ class SignalAnalysisScreen(QWidget):
         A0 = A[0]
         B0 = B[0]
 
-        self.log("Hinlaufende / rücklaufende Welle:")
+        self.log("Hinlaufende / rücklaufende Welle", category="title")
         self.log(f"A = {A0}")
         self.log(f"|A| = {np.abs(A0):.6e}")
         self.log(f"Phase A = {np.angle(A0):.6f} rad")
@@ -940,7 +973,8 @@ class SignalAnalysisScreen(QWidget):
             self.update_time_plots(signal, f0)
 
             freq_resolution = sample_rate / num_samples
-            self.log(f"Aufnahme abgeschlossen: Dauer={duration:.0f} s")
+            self.log(f"Messeinstellungen", category="title")
+            self.log(f"Aufnahmdauer: {duration:.0f} s")
             self.log(f"Samples pro Mikrofon: {num_samples}")
             self.log(f"Sample-Rate: {sample_rate:.1f} Hz")
             self.log(f"Messfrequenz: {f0:.2f} Hz")
@@ -948,18 +982,16 @@ class SignalAnalysisScreen(QWidget):
                 f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.1f} Hz"
             )
 
-            self.log("-" * 50)
+          
 
             m = self.measure_three_mics_at_frequency_local(signal, f0)
 
             self.log_microphone_results(m, f0)
-            self.log("-" * 50)
-
+          
             self.log_forward_reflected_waves(m, f0)
-            self.log("-" * 50)
 
             self.compute_fft_from_signal(signal)
-            self.log("#" * 10)
+
 
             mic_results = self.build_mic_result_dict(m, f0)
             self.results_dialog = ComplexResultsDialog(mic_results, parent=self)
@@ -999,7 +1031,7 @@ class SignalAnalysisScreen(QWidget):
 
             self.fft_buffers = []
             f0_index = int(np.argmin(np.abs(freqs - f0)))
-
+            self.log("FFT-Auswertung mit Hanning-Fenster", category="title")
             for ch in range(self.num_channels):
 
                 """
@@ -1025,33 +1057,33 @@ class SignalAnalysisScreen(QWidget):
                     2.0 * np.abs(spectrum) / window_norm
                 )  # da wir nur die positiven Frequenzen betrachten, müssen wir mit 2.0 multiplizieren, um die korrekte Amplitude zu erhalten
                 self.fft_buffers.append(amp.astype(np.float32))
+
                 self.log(
                     f"Mikrofon {ch + 1},FFT-Amplitude bei {freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}"
                 )
 
             self._refresh_fft_plots()
-            self.log("#" * 10)
+            self.log("10 FFT-Werte", category="title")
             # 10 FFT-Werte um die Messfrequenz f0 loggen
             half_window = 5
             start_idx = max(0, f0_index - half_window)
             end_idx = min(len(freqs), f0_index + half_window + 1)
 
             self.log(
-                f"{'Index':>10} | {'Frequenz [Hz]':>18} | {'Abstand zu f0 [Hz]':>18} | {'Amplitude [V]':>18}"
+                f"{'Index':>10}  {'Frequenz [Hz]':>18}  {'Abstand zu f0 [Hz]':>18}  {'Amplitude [V]':>18}"
             )
-            self.log("-" * 50)
 
             for idx in range(start_idx, end_idx):
                 freq = freqs[idx]
                 distance_to_f0 = freq - f0
                 self.log(
-                    f"{idx:10d} | "
-                    f"{freq:18.3f} | "
-                    f"{distance_to_f0:18.3f} | "
+                    f"{idx:10d}"
+                    f"{freq:18.3f}"
+                    f"{distance_to_f0:18.1f}     "
                     f"{amp[idx]:18.6e}"
                 )
 
-            self.log("-" * 50)
+          
         except Exception as e:
             QMessageBox.critical(self, "FFT-Fehler", str(e))
 
@@ -1331,7 +1363,6 @@ class MainWindow(QWidget):
             while step <= MAX_AUTO_STEPS:
                 generator.set_output(f0, voltage)
 
-                self.signal_screen.log("-" * 100)
                 self.signal_screen.log(f"Automatik Schritt {step}")
                 self.signal_screen.log(
                     f"Generator: f = {f0:.2f} Hz, U = {voltage:.4f} V"
