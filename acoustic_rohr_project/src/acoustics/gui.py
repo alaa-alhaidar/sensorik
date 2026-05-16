@@ -79,8 +79,14 @@ MIC_X1 = -0.050
 MIC_X2 = -0.085
 MIC_X3 = -0.145
 
+'''
+D = 0   → harte Wand, volle Reflexion
+D = 1   → volle Absorption, keine Reflexion
+D = 0.64 → 64 % Energieverlust, 36 % Reflexion
+'''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
+# format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
 def format_voltage(value):
     value = float(value)
     abs_value = abs(value)
@@ -740,7 +746,7 @@ class SignalAnalysisScreen(QWidget):
         plot_widget.getAxis("left").enableAutoSIPrefix(False)
         plot_widget.getAxis("bottom").enableAutoSIPrefix(False)
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setYRange(-0.001, 0.001, padding=0)
+        plot_widget.setYRange(-0.0001, 0.0001, padding=0)
 
         plot_widget.plot(
             freqs,
