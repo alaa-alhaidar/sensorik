@@ -662,12 +662,11 @@ class SignalAnalysisScreen(QWidget):
 
     def _connect_signals(self):
         self.source_combo.currentTextChanged.connect(self.on_source_changed)
+
         self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
         self.audio_start_button.clicked.connect(self.start_audio)
         self.audio_stop_button.clicked.connect(self.stop_audio)
-        self.record_button.clicked.connect(
-                lambda: self.record_for_time(self._get_measurement_duration())
-            )
+        self.record_button.clicked.connect(lambda: self.record_for_time(self._get_measurement_duration()))
         self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
         self.show_log_button.clicked.connect(self.show_log_window)
         self.show_results_button.clicked.connect(self.show_results_window)
@@ -1409,12 +1408,17 @@ class SignalAnalysisScreen(QWidget):
     def cleanup(self):
         self.stop_audio()
 
+    '''
+    diese Funktion bereitet die Ergebnisse der Mikrofonmessungen auf, indem sie die Phasenverschiebungen relativ zum ersten 
+    Mikrofon berechnet und in einem übersichtlichen Dictionary speichert. Sie berechnet auch die Phasenverschiebung in Grad 
+    und die Zeitverschiebung in Millisekunden für jedes Mikrofon im Vergleich zum ersten Mikrofon.
+    '''
     def build_mic_result_dict(self, m, f0):
         phase_ref = m["phase1"]
         result = {}
 
         for i in range(1, 4):
-            phase_shift = m[f"phase{i}"] - phase_ref
+            phase_shift = m[f"phase{i}"] - phase_ref # Phasenverschiebung relativ zum ersten Mikrofon
             phase_shift_deg = np.degrees(phase_shift)
             time_shift_ms = phase_shift / (2.0 * np.pi * f0) * 1000.0
 
@@ -1428,6 +1432,10 @@ class SignalAnalysisScreen(QWidget):
 
         return result
 
+    '''
+    Diese Funktion berechnet die hinlaufende und rücklaufende Welle (A und B) basierend auf den komplexen Amplituden
+    der drei Mikrofone
+    '''
     def compute_forward_reflected_results(self, m, f0):
         cfg = self._get_wave_config()
         freqs = np.array([f0], dtype=float)
@@ -1464,7 +1472,13 @@ class SignalAnalysisScreen(QWidget):
             "residual": residual[0],
         }
 
-
+    '''
+    Die MainWindow-Klasse ist das zentrale Element der Benutzeroberfläche. Sie verwaltet die verschiedenen Bildschirme
+    (Start, Generator, Signal) und koordiniert die Interaktionen zwischen ihnen. Sie enthält Funktionen für die automatische
+    Messung, die Frequenzschleife und die Aktualisierung der Messfrequenz basierend auf den Eingaben des Generators.
+    Außerdem werden hier die Ergebnisse der Messungen geloggt und die entsprechenden Fenster für die Anzeige der Ergebnisse
+    geöffnet.
+    '''
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -1489,31 +1503,16 @@ class MainWindow(QWidget):
         layout.addWidget(self.stack)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-
-        self.start_screen.generator_button.clicked.connect(
-            lambda: self.stack.setCurrentIndex(1)
-        )
-        self.start_screen.signal_button.clicked.connect(
-            lambda: self.stack.setCurrentIndex(2)
-        )
-
-        self.generator_screen.back_button.clicked.connect(
-            lambda: self.stack.setCurrentIndex(0)
-        )
-        self.signal_screen.back_button.clicked.connect(
-            lambda: self.stack.setCurrentIndex(0)
-        )
-        self.start_screen.auto_button.clicked.connect(
-            lambda: self.stack.setCurrentWidget(self.signal_screen)
-        )
-       
-        self.signal_screen.auto_start_button.clicked.connect(
-            self.run_automatic_measurement
-        )
+        
+        # Verbindet die Buttons mit den Funktionen zum Wechseln der Bildschirme und zum Starten der Messungen
+        self.start_screen.generator_button.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        self.start_screen.signal_button.clicked.connect(lambda: self.stack.setCurrentIndex(2))
+        self.generator_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        self.signal_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        self.start_screen.auto_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.signal_screen))
+        self.signal_screen.auto_start_button.clicked.connect(self.run_automatic_measurement)
         self.signal_screen.sweep_button.clicked.connect(self.run_frequency_sweep)
-        self.signal_screen.show_sweep_plot_button.clicked.connect(
-            self.signal_screen.show_sweep_plot_window
-        )
+        self.signal_screen.show_sweep_plot_button.clicked.connect(self.signal_screen.show_sweep_plot_window)
 
     def run_frequency_sweep(self):
         try:
