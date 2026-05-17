@@ -1503,7 +1503,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.stack)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-        
+
         # Verbindet die Buttons mit den Funktionen zum Wechseln der Bildschirme und zum Starten der Messungen
         self.start_screen.generator_button.clicked.connect(lambda: self.stack.setCurrentIndex(1))
         self.start_screen.signal_button.clicked.connect(lambda: self.stack.setCurrentIndex(2))
@@ -1514,6 +1514,12 @@ class MainWindow(QWidget):
         self.signal_screen.sweep_button.clicked.connect(self.run_frequency_sweep)
         self.signal_screen.show_sweep_plot_button.clicked.connect(self.signal_screen.show_sweep_plot_window)
 
+    '''
+    Die Funktion run_frequency_sweep führt eine automatische Frequenzschleife durch, bei der die Generatorfrequenz
+    schrittweise von einem Startwert bis zu einem Stopwert erhöht wird. Für jede Frequenz wird die Generatorspannung angepasst,
+    um eine Zielamplitude am ersten Mikrofon zu erreichen. Die Ergebnisse der Messungen werden geloggt und in einer Liste 
+    gespeichert, die später für die Anzeige der Sweep-Ergebnisse verwendet wird.
+    '''
     def run_frequency_sweep(self):
         try:
             generator = self.generator_screen.generator
@@ -1560,11 +1566,11 @@ class MainWindow(QWidget):
                         f"Schritt {step}: f = {f0:.1f} Hz, U = {voltage:.4f} V"
                     )
 
-                    m = self.signal_screen.record_for_time(duration)
+                    m = self.signal_screen.record_for_time(duration) # rückgabewert ist ein dict mit den komplexen Amplituden der drei Mikrofone, den Phasen und RMS-Werten
                     if m is None:
                         raise RuntimeError("Messung fehlgeschlagen.")
 
-                    wave = self.signal_screen.compute_forward_reflected_results(m, f0)
+                    wave = self.signal_screen.compute_forward_reflected_results(m, f0) # rückgabewert ist ein dict mit den berechneten Werten für die hinlaufende und rücklaufende Welle, dem Reflexionsgrad, der Dissipation und dem Residuum
                     measured_A_abs = wave["A_abs"]
 
                     ok, relative_error = amplitude_reached_target(
@@ -1629,10 +1635,15 @@ class MainWindow(QWidget):
                 self.signal_screen.current_f0 = f0
         except ValueError:
             pass
-
+    '''
+    Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
+    angepasst werden, um eine Zielamplitude am ersten Mikrofon zu erreichen. Die Funktion iteriert über mehrere Schritte, 
+    in denen die Generatorparameter aktualisiert und die Messungen durchgeführt werden. Die Ergebnisse der Messungen werden 
+    geloggt, und die Funktion bricht ab, wenn die Zielamplitude erreicht ist oder die maximale Generatorspannung überschritten wird.
+    '''
     def run_automatic_measurement(self):
         try:
-            generator = self.generator_screen.generator
+            generator = self.generator_screen.generator # Zugriff auf den Generator, der in der GeneratorScreen-Klasse verwaltet wird
 
             if generator is None:
                 QMessageBox.warning(
@@ -1654,9 +1665,7 @@ class MainWindow(QWidget):
                 )
 
             self.signal_screen.current_f0 = f0
-            self.signal_screen.source_combo.setCurrentText(
-                SOURCE_SIMULATION
-            )  # sonst SOURCE_SCARLETT, damit die gemessenen Werte nicht mit der Simulation vermischt werden
+            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)  # sonst SOURCE_SCARLETT, damit die gemessenen Werte nicht mit der Simulation vermischt werden
             self.signal_screen.refresh_focusrite_devices()
 
             self.stack.setCurrentWidget(self.signal_screen)
@@ -1757,13 +1766,13 @@ class MainWindow(QWidget):
         finally:
             event.accept()
 
-
+# Die main-Funktion ist der Einstiegspunkt der Anwendung, der die MainWindow-Klasse erstellt und die Qt-Anwendung startet.
 def main():
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
 
-
+# Der Einstiegspunkt der Anwendung, der die MainWindow-Klasse erstellt und die Qt-Anwendung startet.
 if __name__ == "__main__":
     main()
