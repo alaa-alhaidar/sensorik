@@ -15,7 +15,7 @@ from automation import (
     update_voltage_from_amplitude,
     amplitude_reached_target,
 )
-
+# PySide6-Importe
 from PySide6.QtWidgets import QSpinBox
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
@@ -44,6 +44,7 @@ from focusrite_interface import FocusriteInterface
 from estimation import estimate_forward_reflected_three_mics_ls
 from generator_hdw_panel import TektronixAFG320
 
+# Feste Parameter für die automatische Messung
 SWEEP_START_FREQ = 300.0
 SWEEP_STOP_FREQ = 2000.0
 SWEEP_STEP_FREQ = 53.0
@@ -100,10 +101,14 @@ def format_voltage(value):
     else:
         return f"{value:.6e} V"
     
+'''
+Die Klasse SignalPlotDialog ist ein einfaches Dialogfenster, das einen Plot anzeigt. Es wird verwendet, 
+um die Zeit-Signal-Daten in einem größeren Fenster darzustellen
+'''
 class SignalPlotDialog(QDialog):
     def __init__(self, title, x, y, xlabel="Zeit [s]", ylabel="Signal", parent=None):
         super().__init__(parent)
-        self.setWindowTitle(title)
+        self.setWindowTitle(title)  
         self.resize(1400, 550)
 
         layout = QVBoxLayout()
@@ -118,7 +123,12 @@ class SignalPlotDialog(QDialog):
         layout.addWidget(self.plot_widget)
         self.setLayout(layout)
 
-
+'''
+Die Klasse LogDialog ist ein Dialogfenster, das eine Tabelle zur Anzeige von Log-Meldungen enthält. Sie bietet eine Methode append(),
+mit der neue Log-Einträge hinzugefügt werden können. Jeder Eintrag besteht aus einer Kategorie (z.B. "Info", "Fehler") und einer Meldung.
+Die Tabelle hat drei Spalten: eine fortlaufende Nummer, die Kategorie und die eigentliche Meldung. Es gibt auch einen "Zurück"-Button,
+um das Dialogfenster zu schließen. Die Tabelle ist so konfiguriert, dass sie nicht bearbeitbar ist und abwechselnd farbige Zeilen zur besseren Lesbarkeit verwendet.
+'''
 class LogDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -176,7 +186,12 @@ class LogDialog(QDialog):
 
         self.log_table.scrollToBottom()
 
-
+'''
+Die Klasse ComplexResultsDialog ist ein Dialogfenster, das die komplexen Schalldruck-Amplituden der drei Mikrofone anzeigt.
+Für jedes Mikrofon gibt es einen eigenen Plot, der den Real- und Imaginärteil der Amplitude als Punkt in der komplexen Ebene darstellt.
+Zusätzlich werden unter jedem Plot detaillierte Informationen zum Spektrum bei der Messfrequenz, Real- und Imaginärteil, Betrag, Phase, RMS-Wert,
+Phasenverschiebung und Zeitverschiebung angezeigt. Es gibt auch einen "Zurück"-Button, um das Dialogfenster zu schließen.
+'''
 class ComplexResultsDialog(QDialog):
     def __init__(self, mic_results, parent=None):
         super().__init__(parent)
@@ -290,7 +305,10 @@ class ComplexResultsDialog(QDialog):
         layout.addLayout(mic_row)
         self.setLayout(layout)
 
-
+'''
+Die Klasse StartScreen ist das Hauptmenü der Anwendung, das drei große Buttons für die verschiedenen Funktionen bietet: "Automatische Messung",
+"Signalgenerator" und "Signalanalyse".
+'''
 class StartScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -328,7 +346,10 @@ class StartScreen(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-
+'''
+Die Klasse GeneratorScreen ist die Benutzeroberfläche zur Steuerung des Signalgenerators. 
+Sie bietet Eingabefelder für die GPIB-Ressource, Frequenz und Amplitude,
+'''
 class GeneratorScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -499,7 +520,10 @@ class GeneratorScreen(QWidget):
     def cleanup(self):
         self.disconnect_generator()
 
-
+'''
+Die Klasse SignalAnalysisScreen ist die Hauptbenutzeroberfläche für die Signalanalyse. Sie bietet Optionen zur Auswahl der Signalquelle
+(Simulation oder Audio-Interface),
+'''
 class SignalAnalysisScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
