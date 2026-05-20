@@ -14,13 +14,11 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     B_est = np.zeros_like(P1, dtype=complex)
     residual_norm = np.zeros(len(freqs_hz))
 
-    positions = [cfg.x1, cfg.x2, cfg.x3]
-
     for i in range(len(freqs_hz)):
         A = np.array([
-            [np.exp(-1j * k[i] * positions[0]), np.exp(1j * k[i] * positions[0])],
-            [np.exp(-1j * k[i] * positions[1]), np.exp(1j * k[i] * positions[1])],
-            [np.exp(-1j * k[i] * positions[2]), np.exp(1j * k[i] * positions[2])]
+            [np.exp(-1j * k[i] * cfg.x1), np.exp(1j * k[i] * cfg.x1)],
+            [np.exp(-1j * k[i] * cfg.x2), np.exp(1j * k[i] * cfg.x2)],
+            [np.exp(-1j * k[i] * cfg.x3), np.exp(1j * k[i] * cfg.x3)]
         ], dtype=complex)
 
         b = np.array([P1[i], P2[i], P3[i]], dtype=complex)
@@ -41,3 +39,24 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     # B_est        = geschätzte reflektierte Welle
     # residual_norm = Güte der Anpassung
     return A_est, B_est, residual_norm
+
+def estimate_forward_reflected_two_mics_exact(P1, P2, freq_hz, cfg):
+    k = wave_number(float(freq_hz), cfg.c)
+
+    M = np.array([
+        [np.exp(-1j * k * cfg.x1), np.exp(1j * k * cfg.x1)],
+        [np.exp(-1j * k * cfg.x2), np.exp(1j * k * cfg.x2)],
+    ], dtype=complex)
+
+    b = np.array([P1, P2], dtype=complex)
+
+    # löse das lineare Gleichungssystem M @ [A; B] = b
+    solution = np.linalg.solve(M, b)
+    
+
+
+
+    A_exact = solution[0]
+    B_exact = solution[1]
+
+    return A_exact, B_exact

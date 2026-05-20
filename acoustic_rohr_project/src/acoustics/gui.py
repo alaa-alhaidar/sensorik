@@ -15,6 +15,12 @@ from automation import (
     update_voltage_from_amplitude,
     amplitude_reached_target,
 )
+
+from estimation import (
+    estimate_forward_reflected_three_mics_ls,
+    estimate_forward_reflected_two_mics_exact,
+)
+
 # PySide6-Importe
 from PySide6.QtWidgets import QSpinBox
 from PySide6.QtCore import QTimer, Qt
@@ -100,7 +106,8 @@ def format_voltage(value):
         return f"{value * 1e6:.3f} µV"
     else:
         return f"{value:.6e} V"
-    
+
+
 '''
 Die Klasse SignalPlotDialog ist ein einfaches Dialogfenster, das einen Plot anzeigt. Es wird verwendet, 
 um die Zeit-Signal-Daten in einem größeren Fenster darzustellen
@@ -731,6 +738,49 @@ class SignalAnalysisScreen(QWidget):
 
         return f0, voltage, output_enabled
 
+    def compare_exact_and_ls_with_current_signal(self, m, f0):
+        cfg = self._get_wave_config()
+
+        # 1) Exakte Lösung mit 2 Mikrofonen: P1 und P2
+        A_exact, B_exact = estimate_forward_reflected_two_mics_exact(
+            m["P1"], m["P2"], f0, cfg
+        )
+
+        # 2) Least-Squares mit 3 Mikrofonen: P1, P2, P3
+        freqs = np.array([f0], dtype=float)
+
+        A_ls, B_ls, residual = estimate_forward_reflected_three_mics_ls(
+            np.array([m["P1"]], dtype=complex),
+            np.array([m["P2"]], dtype=complex),
+            np.array([m["P3"]], dtype=complex),
+            freqs,
+            cfg,
+        )
+
+        A_ls = A_ls[0]
+        B_ls = B_ls[0]
+        print("\n==============================")
+        print("Vergleich: exakte Lösung vs. Least-Squares")
+        print("==============================")
+
+        print("\nExakte Lösung mit 2 Mikrofonen:")
+        print(f"A_exact = {A_exact}")
+        print(f"|A_exact| = {np.abs(A_exact):.6e}")
+        print(f"B_exact = {B_exact}")
+        print(f"|B_exact| = {np.abs(B_exact):.6e}")
+
+        print("\nLeast-Squares mit 3 Mikrofonen:")
+        print(f"A_LS = {A_ls}")
+        print(f"|A_LS| = {np.abs(A_ls):.6e}")
+        print(f"B_LS = {B_ls}")
+        print(f"|B_LS| = {np.abs(B_ls):.6e}")
+        print(f"Residuum LS = {residual[0]:.6e}")
+
+        print("\nDifferenz:")
+        print(f"|A_exact - A_LS| = {np.abs(A_exact - A_ls):.6e}")
+        print(f"|B_exact - B_LS| = {np.abs(B_exact - B_ls):.6e}")
+        print("==============================\n")
+
     def show_results_window(self):
         if not hasattr(self, "results_dialog") or self.results_dialog is None:
             QMessageBox.information(
@@ -853,7 +903,7 @@ class SignalAnalysisScreen(QWidget):
         audio = np.zeros((n, self.num_channels), dtype=np.float64)
 
         rng = np.random.default_rng(12345)
-        noise_level = 0 #2.0e-6
+        noise_level = 0.00 #2.0e-6
 
         for ch, x in enumerate(positions):
             P = A_sim * np.exp(-1j * k * x) + B_sim * np.exp(1j * k * x)
@@ -1172,6 +1222,7 @@ class SignalAnalysisScreen(QWidget):
             self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
 
             m = self.measure_three_mics_at_frequency_local(signal, f0)
+            self.compare_exact_and_ls_with_current_signal(m, f0)
 
             self.log_microphone_results(m, f0)
 
