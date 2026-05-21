@@ -302,6 +302,7 @@ class ComplexResultsDialog(QDialog):
                 f"Phasenverschiebung in Rad = {mic_results[f'phase_shift{i+1}']:.6f} rad\n"
                 f"Phasenverschiebung in Grad = {mic_results[f'phase_shift_deg{i+1}']:.2f}°\n"
                 f"Zeitverschiebung = {mic_results[f'time_shift_ms{i+1}']:.3f} ms\n\n"
+                
             )
             info.setStyleSheet("font-size: 16px; padding: 8px; background: white;")
             box_layout.addWidget(info)
@@ -445,6 +446,9 @@ class GeneratorScreen(QWidget):
         try:
             resource = self.resource_edit.text().strip()
 
+            if not resource:
+                raise ValueError("Bitte GPIB-Ressource eingeben.")
+
             if USE_SIMULATED_GENERATOR:
                 self.generator = SimulatedGenerator()
                 self.generator.connect()
@@ -454,12 +458,9 @@ class GeneratorScreen(QWidget):
                 self.generator.connect()
                 self.log(f"Hardware-Generator verbunden: {resource}")
 
-            if not resource:
-                raise ValueError("Bitte GPIB-Ressource eingeben.")
-
-            self.generator = SimulatedGenerator()
-            self.generator.connect()
-            self.log("Simulierter Generator verbunden.")
+        except Exception as e:
+            QMessageBox.critical(self, "Generator-Fehler", str(e))
+            
 
         except Exception as e:
             QMessageBox.critical(self, "Generator-Fehler", str(e))
@@ -1108,23 +1109,59 @@ class SignalAnalysisScreen(QWidget):
             )
 
     def log_microphone_results(self, m, f0):
-        phase_ref = m["phase1"]
+        phase_ref = m["phase1"] # sucht in array nach phase1, phase2, phase3
         self.log("Messergebnisse", category="title")
 
+        amp_ref = m["amp1"]
+        phase_ref = m["phase1"]
+
         for i in range(1, self.num_channels + 1):
-            phase_shift = m[f"phase{i}"] - phase_ref
+            amp = m[f"amp{i}"]
+            phase = m[f"phase{i}"]
+
+            # Betrag / Amplitude
+            amp_diff = amp - amp_ref
+            amp_diff_abs = abs(amp_diff)
+            amp_diff_percent = (amp / (amp_ref + 1e-12) - 1.0) * 100.0
+            amp_diff_percent_abs = abs(amp_diff_percent)
+
+            # Phase
+            phase_shift = phase - phase_ref
+            phase_shift_abs = abs(phase_shift)
             phase_shift_deg = np.degrees(phase_shift)
-            time_shift_ms = phase_shift / (2.0 * np.pi * f0) * 1000.0
+            phase_shift_deg_abs = abs(phase_shift_deg)
+
+            # Prozent einer vollen Periode: 2*pi rad = 360° = 100 %
+            phase_shift_percent = phase_shift_abs / (2.0 * np.pi) * 100.0
+
+            self.log(f"Mikrofon {i}", category="title")
 
             self.log(
-                f"Mikrofon {i}: "
-                f"|P{i}| = {m[f'amp{i}']:.6e}, "
-                f"Phase = {m[f'phase{i}']:.6f} rad, "
-                f"RMS = {m[f'rms{i}']:.6e}, "
-                f"Phasenverschiebung zu Mikrofon 1 = {phase_shift:.6f} rad "
-                f"({phase_shift_deg:.2f}°), "
-                f"Zeitverschiebung = {time_shift_ms:.3f} ms"
+                f"Betrag |P{i}| = {amp:.6e}"
             )
+
+            self.log(
+                f"Betrag-Abweichung zu Mikrofon 1 = {amp_diff_abs:.6e}"
+            )
+
+            self.log(
+                f"Betrag-Abweichung in Prozent = {amp_diff_percent_abs:.3f} %"
+            )
+
+            self.log(
+                f"Phase(P{i}) = {phase:.6f} rad = {np.degrees(phase):.2f}°"
+            )
+
+            self.log(
+                f"Phase-Abweichung zu Mikrofon 1 = {phase_shift_abs:.6f} rad "
+                f"= {phase_shift_deg_abs:.3f}°"
+            )
+
+            self.log(
+                f"Phase-Abweichung in Prozent einer Periode = {phase_shift_percent:.3f} %"
+            )
+            
+            
 
     def log_forward_reflected_waves(self, m, f0):
         cfg = self._get_wave_config()
@@ -1140,27 +1177,35 @@ class SignalAnalysisScreen(QWidget):
 
         A0 = A[0]
         B0 = B[0]
-        B_over_A = np.abs(B0) / (np.abs(A0) + 1e-12)
-        R = B_over_A ** 2
-        D = 1.0 - R
+        r_complex = B0 / (A0 + 1e-12)
+        r_abs = np.abs(r_complex)
+        r_phase = np.angle(r_complex)
+        r_phase_deg = np.degrees(r_phase)
 
-        self.log("Hinlaufende / rücklaufende Welle", category="title")
-        self.log(f"A = {A0}")
+        R = r_abs ** 2
+        D = 1.0 - R
+        self.log("Wellenzerlegung: hinlaufende und rücklaufende Welle", category="title")
+
+        self.log(f"Hinlaufende Welle A = {A0.real:.6e} + j({A0.imag:.6e})")
         self.log(f"|A| = {np.abs(A0):.6e}")
-        self.log(f"Phase A = {np.angle(A0):.6f} rad")
-        self.log(f"B = {B0}")
+        self.log(f"Phase(A) = {np.angle(A0):.6f} rad = {np.degrees(np.angle(A0)):.2f}°")
+
+        self.log(f"Rücklaufende Welle B = {B0.real:.6e} + j({B0.imag:.6e})")
         self.log(f"|B| = {np.abs(B0):.6e}")
-        self.log(f"Phase B = {np.angle(B0):.6f} rad")
-        self.log(f"Reflexion |B| / |A| = {np.abs(B0) / (np.abs(A0) + 1e-12):.6f}")
-        self.log(f"Residuum = {residual[0]:.6e}")
-        self.log(f"Reflexionsgrad R = |B/A|² = {R:.6f}")
+        self.log(f"Phase(B) = {np.angle(B0):.6f} rad = {np.degrees(np.angle(B0)):.2f}°")
+
+        self.log(f"Komplexer Reflexionsfaktor r = B/A = {r_complex.real:.6e} + j({r_complex.imag:.6e})")
+        self.log(f"|r| = |B/A| = {r_abs:.6f}")
+        self.log(f"Phase(r) = {r_phase:.6f} rad = {r_phase_deg:.2f}°")
+
+        self.log(f"Reflexionsgrad R = |r|² = {R:.6f}")
         self.log(f"Dissipation D = 1 - R = {D:.6f}")
         self.log(f"Dissipation = {D * 100.0:.3f} %")
+        self.log(f"Residuum Least Squares = {residual[0]:.6e}")
 
     def record_for_time(self, duration=None):
         try:
-            # PySide6 clicked-Signal kann False übergeben.
-            # Deshalb bool/None abfangen und auf Standarddauer setzen.
+            
             if duration is None:
                 duration = MEASUREMENT_DURATION
                 self.log(f"Aufnahme gestartet: Dauer={duration:.3f} s")
@@ -1183,6 +1228,7 @@ class SignalAnalysisScreen(QWidget):
             else:
                 self.focusrite = self._create_focusrite()
                 signal = self.focusrite.record_input(duration=duration)
+                print(f"Aufnahme von Fokusrite: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
 
             signal = np.asarray(signal, dtype=np.float32)
 
@@ -1204,14 +1250,14 @@ class SignalAnalysisScreen(QWidget):
                     f"Das Gerät liefert nur {signal.shape[1]}."
                 )
 
-            self.last_recording = signal
-            self.last_mode = "record"
+            self.last_recording = signal # speichert die aktuelle Aufnahme, damit wir sie später in der Ergebnisanzeige verwenden können
+            self.last_mode = "record" # markiert, dass die letzte Aufnahme eine "record"-Aufnahme war (im Gegensatz zu "live")
 
             f0 = self._get_f0()
             num_samples = signal.shape[0]
             sample_rate = self._get_sample_rate()
 
-            self.update_time_plots(signal, f0)
+            self.update_time_plots(signal, f0) # aktualisiert die Zeitplots mit der aufgenommenen Messung
 
             freq_resolution = sample_rate / num_samples
             self.log(f"Messeinstellungen", category="title")
@@ -1221,7 +1267,8 @@ class SignalAnalysisScreen(QWidget):
             self.log(f"Messfrequenz: {f0:.2f} Hz")
             self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
 
-            m = self.measure_three_mics_at_frequency_local(signal, f0)
+            m = self.measure_three_mics_at_frequency_by_f0(signal, f0) # berechnet die komplexen Werte an den Mikrofonen für die Messfrequenz f0,
+
             self.compare_exact_and_ls_with_current_signal(m, f0)
 
             self.log_microphone_results(m, f0)
@@ -1377,8 +1424,13 @@ class SignalAnalysisScreen(QWidget):
         if updated:
             self._refresh_time_plots()
 
-    def measure_at_frequency_local(self, signal, f0):
-        signal = np.asarray(signal, dtype=np.float64).flatten()  # Sicherstellen, dass es ein 1D-Array ist
+    # Diese Funktion berechnet die komplexe Amplitude P, den Betrag, die Phase und den RMS-Wert des Signals bei der Frequenz f0.
+    # wie in der FFT-Berechnung: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t)), also die Projektion des Signals auf die komplexe 
+    # Referenzschwingung mit Frequenz f0, normiert mit 2/n wegen der Amplitudenanpassung.
+
+    def measure_at_frequency_by_f0(self, signal, f0):
+        #print(f"measure_at_frequency_by_f0: signal shape={signal.shape}, {signal.ndim},f0={f0}")
+        signal = np.asarray(signal, dtype=np.float64).flatten() # Sicherstellen, dass signal eindimensional ist
 
         if signal.size == 0:
             raise ValueError("Leeres Signal.")
@@ -1387,10 +1439,19 @@ class SignalAnalysisScreen(QWidget):
             raise ValueError("f0 muss größer als 0 sein.")
 
         n = (signal.size)  # Anzahl Samples im Signal (z.B. 48000 für 1 Sekunde bei 48 kHz)
+        print(f"Signal-Shape: {signal.shape}, Samples: {n}, f0: {f0} Hz, Dimension: {signal.ndim}")
         t = (np.arange(n, dtype=np.float64) / self._get_sample_rate())  # Zeitachse für die Samples
 
+        # https://numpy.org/doc/stable/reference/routines.fft.html
+        # FFT bei f0 berechnen: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t))
+        # Das Signal wird mit einer Referenzschwingung bei der Generatorfrequenz multipliziert.
+        '''
+        signal: [x0, x1, x2, ...]
+        ref:    [r0, r1, r2, ...]
+        '''
+
         ref = np.exp(-1j * 2.0 * np.pi * f0 * t)  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
-        P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung (siehe FFT-Berechnung)
+        P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung
 
         amplitude = np.abs(P)
         phase = np.angle(P)
@@ -1398,7 +1459,7 @@ class SignalAnalysisScreen(QWidget):
 
         return P, amplitude, phase, rms
 
-    def measure_three_mics_at_frequency_local(self, signal, f0):
+    def measure_three_mics_at_frequency_by_f0(self, signal, f0):
         signal = np.asarray(signal, dtype=np.float64)
 
         if signal.ndim == 1:
@@ -1410,9 +1471,9 @@ class SignalAnalysisScreen(QWidget):
                 f"Vorhanden: {signal.shape[1]}."
             )
 
-        P1, amp1, phase1, rms1 = self.measure_at_frequency_local(signal[:, 0], f0)
-        P2, amp2, phase2, rms2 = self.measure_at_frequency_local(signal[:, 1], f0)
-        P3, amp3, phase3, rms3 = self.measure_at_frequency_local(signal[:, 2], f0)
+        P1, amp1, phase1, rms1 = self.measure_at_frequency_by_f0(signal[:, 0], f0)
+        P2, amp2, phase2, rms2 = self.measure_at_frequency_by_f0(signal[:, 1], f0)
+        P3, amp3, phase3, rms3 = self.measure_at_frequency_by_f0(signal[:, 2], f0)
 
         return {
             "P1": P1,
@@ -1592,7 +1653,7 @@ class MainWindow(QWidget):
     '''
     Die Funktion run_frequency_sweep führt eine automatische Frequenzschleife durch, bei der die Generatorfrequenz
     schrittweise von einem Startwert bis zu einem Stopwert erhöht wird. Für jede Frequenz wird die Generatorspannung angepasst,
-    um eine Zielamplitude am ersten Mikrofon zu erreichen. Die Ergebnisse der Messungen werden geloggt und in einer Liste 
+    um eine Zielamplitude der hinlaufenden Welle |A| zu erreichen. Die Ergebnisse der Messungen werden geloggt und in einer Liste 
     gespeichert, die später für die Anzeige der Sweep-Ergebnisse verwendet wird.
     '''
     def run_frequency_sweep(self):
@@ -1712,7 +1773,7 @@ class MainWindow(QWidget):
             pass
     '''
     Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
-    angepasst werden, um eine Zielamplitude am ersten Mikrofon zu erreichen. Die Funktion iteriert über mehrere Schritte, 
+    angepasst werden, um eine Zielamplitude der hinlaufenden Welle |A| zu erreichen. Die Funktion iteriert über mehrere Schritte, 
     in denen die Generatorparameter aktualisiert und die Messungen durchgeführt werden. Die Ergebnisse der Messungen werden 
     geloggt, und die Funktion bricht ab, wenn die Zielamplitude erreicht ist oder die maximale Generatorspannung überschritten wird.
     '''

@@ -76,6 +76,7 @@ class FocusriteInterface:
         sd.wait()
 
         audio = np.asarray(audio, dtype=np.float64)
+        print(f"Aufnahme abgeschlossen: {audio.shape[0]} Samples, {audio.shape[1]} Kanäle.")
         return audio
 
     def start_input_stream(self):
