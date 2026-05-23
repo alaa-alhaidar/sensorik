@@ -14,15 +14,16 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     B_est = np.zeros_like(P1, dtype=complex)
     residual_norm = np.zeros(len(freqs_hz))
 
+    # Löse für jede Frequenz das lineare Gleichungssystem A @ [A; B] = b mit den Messungen P1, P2, P3
     for i in range(len(freqs_hz)):
-        A = np.array([
+        M = np.array([
             [np.exp(-1j * k[i] * cfg.x1), np.exp(1j * k[i] * cfg.x1)],
             [np.exp(-1j * k[i] * cfg.x2), np.exp(1j * k[i] * cfg.x2)],
             [np.exp(-1j * k[i] * cfg.x3), np.exp(1j * k[i] * cfg.x3)]
         ], dtype=complex)
 
         b = np.array([P1[i], P2[i], P3[i]], dtype=complex)
-        solution, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
+        solution, residuals, _, _ = np.linalg.lstsq(M, b, rcond=None)
 
         # Lösung speichern:
         # solution[0] = geschätztes A 
@@ -32,7 +33,7 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
         if len(residuals) > 0:
             residual_norm[i] = np.sqrt(residuals[0])
         else:
-            residual_norm[i] = np.linalg.norm(A @ solution - b)
+            residual_norm[i] = np.linalg.norm(M @ solution - b)
 
     # Rückgabe:
     # A_est        = geschätzte hinlaufende Welle
@@ -40,6 +41,7 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     # residual_norm = Güte der Anpassung
     return A_est, B_est, residual_norm
 
+# Berechnet die exakten A- und B-Werte für die Messungen P1, P2 bei der Frequenz freq_hz
 def estimate_forward_reflected_two_mics_exact(P1, P2, freq_hz, cfg):
     k = wave_number(float(freq_hz), cfg.c)
 

@@ -1076,10 +1076,10 @@ class SignalAnalysisScreen(QWidget):
         sample_rate = self._get_sample_rate()
         num_samples = signal.shape[0]
 
-        samples_per_period = int(round(sample_rate / f0))
-        display_periods = self.get_display_periods()
-        display_samples = int(display_periods * samples_per_period)
-        display_samples = max(2, min(display_samples, num_samples))
+        samples_per_period = int(round(sample_rate / f0)) # bsp 48000 / 1000 = 48 Samples pro Periode
+        display_periods = self.get_display_periods() # aus gui, z.B. 5 Perioden
+        display_samples = int(display_periods * samples_per_period) # bsp 5 Perioden * 48 Samples/Periode = 240 Samples für die Anzeige
+        display_samples = max(2, min(display_samples, num_samples)) # mindestens 2 Samples, maximal so viele wie im Signal vorhanden
 
         x = signal[:, 0]  # Mikrofon 1 als Referenz
 
@@ -1165,7 +1165,7 @@ class SignalAnalysisScreen(QWidget):
 
     def log_forward_reflected_waves(self, m, f0):
         cfg = self._get_wave_config()
-        freqs = np.array([f0], dtype=float)
+        freqs = np.array([f0], dtype=float) # erstellt ein Array mit einem Element, der Messfrequenz f0, und Datentyp float
 
         A, B, residual = estimate_forward_reflected_three_mics_ls(
             np.array([m["P1"]], dtype=complex),
@@ -1203,6 +1203,7 @@ class SignalAnalysisScreen(QWidget):
         self.log(f"Dissipation = {D * 100.0:.3f} %")
         self.log(f"Residuum Least Squares = {residual[0]:.6e}")
 
+    # Aufnahme von zeit signalen für eine bestimmte Dauer
     def record_for_time(self, duration=None):
         try:
             
@@ -1225,6 +1226,7 @@ class SignalAnalysisScreen(QWidget):
 
             if self._using_simulation():
                 signal = self._generate_simulated_signal(duration)
+                print(f"Simulierte Signale: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
             else:
                 self.focusrite = self._create_focusrite()
                 signal = self.focusrite.record_input(duration=duration)
@@ -1287,6 +1289,7 @@ class SignalAnalysisScreen(QWidget):
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
             return None
 
+    # https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html
     def compute_fft_from_signal(self, signal):
         try:
             signal = np.asarray(signal, dtype=np.float64)
@@ -1306,7 +1309,7 @@ class SignalAnalysisScreen(QWidget):
 
             if n < 2:
                 raise ValueError("Signal ist zu kurz für FFT.")
-
+            # https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
             freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate)  # Frequenzachsenwerte
             self.fft_freq_axis = freqs.astype(np.float32)
             window = np.hanning(n)  # Hanning-Fenster
@@ -1444,12 +1447,11 @@ class SignalAnalysisScreen(QWidget):
 
         # https://numpy.org/doc/stable/reference/routines.fft.html
         # FFT bei f0 berechnen: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t))
-        # Das Signal wird mit einer Referenzschwingung bei der Generatorfrequenz multipliziert.
         '''
         signal: [x0, x1, x2, ...]
         ref:    [r0, r1, r2, ...]
         '''
-
+        # Erzeugt eine komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft.
         ref = np.exp(-1j * 2.0 * np.pi * f0 * t)  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
         P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung
 

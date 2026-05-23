@@ -2,7 +2,7 @@ import queue
 import numpy as np
 import sounddevice as sd
 
-
+# https://python-sounddevice.readthedocs.io/en/0.5.3/usage.html#recording
 class FocusriteInterface:
     def __init__(self, sample_rate=48000, device=None, dtype="float32", channels=3):
         self.sample_rate = int(sample_rate)
