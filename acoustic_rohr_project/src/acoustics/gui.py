@@ -50,6 +50,10 @@ from focusrite_interface import FocusriteInterface
 from estimation import estimate_forward_reflected_three_mics_ls
 from generator_hdw_panel import TektronixAFG320
 
+# Kalibrierungsparameter für die Simulation
+
+
+
 # Feste Parameter für die automatische Messung
 SWEEP_START_FREQ = 300.0
 SWEEP_STOP_FREQ = 2000.0
@@ -123,8 +127,8 @@ class SignalPlotDialog(QDialog):
         self.plot_widget = pg.PlotWidget(title=title)
         self.plot_widget.setLabel("bottom", xlabel)
         self.plot_widget.setLabel("left", ylabel)
-        self.plot_widget.setMouseEnabled(x=True, y=False)
-        self.plot_widget.showGrid(x=True, y=False)
+        self.plot_widget.setMouseEnabled(x=False, y=True)
+        self.plot_widget.showGrid(x=True, y=True)
         self.plot_widget.plot(x, y, pen="y")
         self.plot_widget.enableAutoRange(False)  # Automatischer Zoom, damit die Daten gut sichtbar sind
         layout.addWidget(self.plot_widget)
@@ -275,7 +279,7 @@ class ComplexResultsDialog(QDialog):
                 [P_plot.imag],
                 pen="r",
                 symbol="o",
-                symbolSize=15,
+                symbolSize=5,
                 symbolBrush="r",
                 thickness=3,
             )
@@ -715,6 +719,7 @@ class SignalAnalysisScreen(QWidget):
         for plot in self.fft_plot_widgets:
             plot.setXRange(x_min, x_max, padding=0)
 
+    # Simulation Generator
     def _get_simulated_generator_values(self):
         """
         Holt Frequenz und Spannung vom simulierten Generator.
@@ -872,9 +877,8 @@ class SignalAnalysisScreen(QWidget):
             raise ValueError("Messfrequenz muss größer als 0 Hz sein.")
 
         return float(self.current_f0)
-
-    # Simulierte Signalerzeugung: Berechnet die erwarteten Signale an den Mikrofonen für die aktuelle Generatorfrequenz 
-    # und -spannung, inklusive Reflexionen. Nützlich für Tests ohne echte Hardware.
+    
+    # Simulation Signal
     def _generate_simulated_signal(self, duration=MEASUREMENT_DURATION):
         sample_rate = self._get_sample_rate()
         duration = float(duration)
@@ -1099,7 +1103,8 @@ class SignalAnalysisScreen(QWidget):
 
         end = start + display_samples
 
-        self.time_axis = np.arange(display_samples, dtype=np.float32) / sample_rate
+        dt = 1.0 / sample_rate
+        self.time_axis = np.arange(display_samples) * dt
 
         for ch in range(self.num_channels):
             self.plot_buffers[ch] = signal[start:end, ch]
@@ -1162,7 +1167,7 @@ class SignalAnalysisScreen(QWidget):
             )
             
             
-
+    # Diese Funktion berechnet die hinlaufende und rücklaufende Welle aus den Mikrofonmessungen und loggt die Ergebnisse
     def log_forward_reflected_waves(self, m, f0):
         cfg = self._get_wave_config()
         freqs = np.array([f0], dtype=float) # erstellt ein Array mit einem Element, der Messfrequenz f0, und Datentyp float
@@ -1203,6 +1208,7 @@ class SignalAnalysisScreen(QWidget):
         self.log(f"Dissipation = {D * 100.0:.3f} %")
         self.log(f"Residuum Least Squares = {residual[0]:.6e}")
 
+    # Zeitsignal
     # Aufnahme von zeit signalen für eine bestimmte Dauer
     def record_for_time(self, duration=None):
         try:
@@ -1255,6 +1261,10 @@ class SignalAnalysisScreen(QWidget):
             self.last_recording = signal # speichert die aktuelle Aufnahme, damit wir sie später in der Ergebnisanzeige verwenden können
             self.last_mode = "record" # markiert, dass die letzte Aufnahme eine "record"-Aufnahme war (im Gegensatz zu "live")
 
+            # Debug-Ausgaben für die aufgenommenen Signale
+            print(f"Aufgenommenes Signal: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
+            print(f"Signal min={signal.min():.6e}, max={signal.max():.6e}, mean={signal.mean():.6e}, std={signal.std():.6e}")
+
             f0 = self._get_f0()
             num_samples = signal.shape[0]
             sample_rate = self._get_sample_rate()
@@ -1271,19 +1281,19 @@ class SignalAnalysisScreen(QWidget):
 
             m = self.measure_three_mics_at_frequency_by_f0(signal, f0) # berechnet die komplexen Werte an den Mikrofonen für die Messfrequenz f0,
 
-            self.compare_exact_and_ls_with_current_signal(m, f0)
+            self.compare_exact_and_ls_with_current_signal(m, f0) # vergleicht die exakte Lösung mit der Least-Squares-Lösung für die aktuelle Messung und loggt die Ergebnisse
 
-            self.log_microphone_results(m, f0)
+            self.log_microphone_results(m, f0) # loggt die Messergebnisse für jedes Mikrofon (Betrag, Phase, Abweichungen zu Mikrofon 1)
 
-            self.log_forward_reflected_waves(m, f0)
+            self.log_forward_reflected_waves(m, f0) # berechnet die hinlaufende und rücklaufende Welle aus den Mikrofonmessungen, loggt die Ergebnisse und berechnet den Reflexionsfaktor, Reflexionsgrad und Dissipation
 
-            self.compute_fft_from_signal(signal)
+            self.compute_fft_from_signal(signal) # berechnet die FFT des aufgenommenen Signals, aktualisiert die FFT-Plots und loggt die Amplitude um die Messfrequenz f0 herum
 
-            mic_results = self.build_mic_result_dict(m, f0)
+            mic_results = self.build_mic_result_dict(m, f0) # erstellt ein Dictionary mit den Messergebnissen für die Mikrofone, das in der Ergebnisanzeige verwendet wird
 
-            self.results_dialog = ComplexResultsDialog(mic_results, parent=self)
+            self.results_dialog = ComplexResultsDialog(mic_results, parent=self) # erstellt die Ergebnisanzeige mit den Messergebnissen, damit sie später angezeigt werden kann
 
-            return m
+            return m # gibt die Messergebnisse zurück, damit sie in der Frequenzschleife verwendet werden können
 
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
@@ -1442,19 +1452,26 @@ class SignalAnalysisScreen(QWidget):
             raise ValueError("f0 muss größer als 0 sein.")
 
         n = (signal.size)  # Anzahl Samples im Signal (z.B. 48000 für 1 Sekunde bei 48 kHz)
-        print(f"Signal-Shape: {signal.shape}, Samples: {n}, f0: {f0} Hz, Dimension: {signal.ndim}")
+        
         t = (np.arange(n, dtype=np.float64) / self._get_sample_rate())  # Zeitachse für die Samples
 
         # https://numpy.org/doc/stable/reference/routines.fft.html
         # FFT bei f0 berechnen: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t))
         '''
-        signal: [x0, x1, x2, ...]
-        ref:    [r0, r1, r2, ...]
+        signal: [x0, x1, x2, ...] 48000 Samples von einem Mikrofon
+        t: [t0, t1, t2, ...] Zeitwerte für die Samples, z.B. t0=0s, t1=1/48000s, t2=2/48000s, ...
+        ref:    [r0, r1, r2, ...] komplexe Referenzschwingung mit Frequenz f0, z.B. r0=1, r1=exp(-j*2*pi*f0*t1), r2=exp(-j*2*pi*f0*t2), ...
         '''
         # Erzeugt eine komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft.
+        '''
+        Wenn im Signal wirklich f0 enthalten ist, dann passt das Signal zur Referenz. Beim Summieren addiert sich dieser Anteil stark.
+        Andere Frequenzen passen nicht zur Referenz. Beim Summieren heben sie sich größtenteils auf.
+        gleiche Frequenz f0     → Summe wird groß
+        andere Frequenzen       → Summe wird klein
+        '''
         ref = np.exp(-1j * 2.0 * np.pi * f0 * t)  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
         P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung
-
+        print(f"measure_at_frequency_by_f0: P={P}, |P|={np.abs(P):.6e}, angle(P)={np.angle(P):.6f} rad, {np.degrees(np.angle(P)):.2f}°")
         amplitude = np.abs(P)
         phase = np.angle(P)
         rms = np.sqrt(np.mean(signal**2))
