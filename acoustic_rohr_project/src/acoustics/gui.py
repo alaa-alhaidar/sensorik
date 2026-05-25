@@ -744,48 +744,6 @@ class SignalAnalysisScreen(QWidget):
 
         return f0, voltage, output_enabled
 
-    def compare_exact_and_ls_with_current_signal(self, m, f0):
-        cfg = self._get_wave_config()
-
-        # 1) Exakte Lösung mit 2 Mikrofonen: P1 und P2
-        A_exact, B_exact = estimate_forward_reflected_two_mics_exact(
-            m["P1"], m["P2"], f0, cfg
-        )
-
-        # 2) Least-Squares mit 3 Mikrofonen: P1, P2, P3
-        freqs = np.array([f0], dtype=float)
-
-        A_ls, B_ls, residual = estimate_forward_reflected_three_mics_ls(
-            np.array([m["P1"]], dtype=complex),
-            np.array([m["P2"]], dtype=complex),
-            np.array([m["P3"]], dtype=complex),
-            freqs,
-            cfg,
-        )
-
-        A_ls = A_ls[0]
-        B_ls = B_ls[0]
-        print("\n==============================")
-        print("Vergleich: exakte Lösung vs. Least-Squares")
-        print("==============================")
-
-        print("\nExakte Lösung mit 2 Mikrofonen:")
-        print(f"A_exact = {A_exact}")
-        print(f"|A_exact| = {np.abs(A_exact):.6e}")
-        print(f"B_exact = {B_exact}")
-        print(f"|B_exact| = {np.abs(B_exact):.6e}")
-
-        print("\nLeast-Squares mit 3 Mikrofonen:")
-        print(f"A_LS = {A_ls}")
-        print(f"|A_LS| = {np.abs(A_ls):.6e}")
-        print(f"B_LS = {B_ls}")
-        print(f"|B_LS| = {np.abs(B_ls):.6e}")
-        print(f"Residuum LS = {residual[0]:.6e}")
-
-        print("\nDifferenz:")
-        print(f"|A_exact - A_LS| = {np.abs(A_exact - A_ls):.6e}")
-        print(f"|B_exact - B_LS| = {np.abs(B_exact - B_ls):.6e}")
-        print("==============================\n")
 
     def show_results_window(self):
         if not hasattr(self, "results_dialog") or self.results_dialog is None:
@@ -1264,6 +1222,9 @@ class SignalAnalysisScreen(QWidget):
             # Debug-Ausgaben für die aufgenommenen Signale
             print(f"Aufgenommenes Signal: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
             print(f"Signal min={signal.min():.6e}, max={signal.max():.6e}, mean={signal.mean():.6e}, std={signal.std():.6e}")
+            print(f"Reele Werte Mikrofon 1: {signal[:5, 1]}")
+            print(f"Reele Werte Mikrofon 2: {signal[:5, 1]}")
+            print(f"Reele Werte Mikrofon 3: {signal[:5, 1]}")
 
             f0 = self._get_f0()
             num_samples = signal.shape[0]
@@ -1280,8 +1241,6 @@ class SignalAnalysisScreen(QWidget):
             self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
 
             m = self.measure_three_mics_at_frequency_by_f0(signal, f0) # berechnet die komplexen Werte an den Mikrofonen für die Messfrequenz f0,
-
-            self.compare_exact_and_ls_with_current_signal(m, f0) # vergleicht die exakte Lösung mit der Least-Squares-Lösung für die aktuelle Messung und loggt die Ergebnisse
 
             self.log_microphone_results(m, f0) # loggt die Messergebnisse für jedes Mikrofon (Betrag, Phase, Abweichungen zu Mikrofon 1)
 
@@ -1562,7 +1521,6 @@ class SignalAnalysisScreen(QWidget):
 
     def cleanup(self):
         self.stop_audio()
-
     '''
     diese Funktion bereitet die Ergebnisse der Mikrofonmessungen auf, indem sie die Phasenverschiebungen relativ zum ersten 
     Mikrofon berechnet und in einem übersichtlichen Dictionary speichert. Sie berechnet auch die Phasenverschiebung in Grad 
