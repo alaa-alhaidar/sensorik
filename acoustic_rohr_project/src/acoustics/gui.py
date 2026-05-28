@@ -1222,9 +1222,9 @@ class SignalAnalysisScreen(QWidget):
             # Debug-Ausgaben für die aufgenommenen Signale
             print(f"Aufgenommenes Signal: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
             print(f"Signal min={signal.min():.6e}, max={signal.max():.6e}, mean={signal.mean():.6e}, std={signal.std():.6e}")
-            print(f"Reele Werte Mikrofon 1: {signal[:5, 1]}")
+            print(f"Reele Werte Mikrofon 1: {signal[:5, 0]}")
             print(f"Reele Werte Mikrofon 2: {signal[:5, 1]}")
-            print(f"Reele Werte Mikrofon 3: {signal[:5, 1]}")
+            print(f"Reele Werte Mikrofon 3: {signal[:5, 2]}")
 
             f0 = self._get_f0()
             num_samples = signal.shape[0]
