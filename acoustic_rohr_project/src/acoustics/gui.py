@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import time
 from types import SimpleNamespace
-
+import sounddevice as sd
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
@@ -18,7 +18,6 @@ from automation import (
 
 from estimation import (
     estimate_forward_reflected_three_mics_ls,
-    estimate_forward_reflected_two_mics_exact,
 )
 
 # PySide6-Importe
@@ -93,7 +92,7 @@ D = 0.64 → 64 % Energieverlust, 36 % Reflexion
 '''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
-
+# bei 1000 Hz: 6.666 µV bei 0.2 V Generator-Spannung
 CALIBRATION = {
     1: 6.666,
     2: 6.666,
@@ -612,6 +611,10 @@ class SignalAnalysisScreen(QWidget):
         self.display_periods_spin.setMaximumWidth(200)
 
         self.device_combo = QComboBox()
+        self.device_combo.setMinimumWidth(400)
+        self.device_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.device_combo.setMinimumContentsLength(45)
+
         self.refresh_focusrite_button = QPushButton("Eingabegeräte aktualisieren")
 
         row1.addWidget(QLabel("Signalquelle"))
@@ -711,6 +714,8 @@ class SignalAnalysisScreen(QWidget):
         self.show_results_button.clicked.connect(self.show_results_window)
         self.measurement_duration_edit.editingFinished.connect(self.refresh_time_axis_only)
 
+
+
     def set_fft_xrange_around_f0(self):
         f0 = self._get_f0()
         sample_rate = self._get_sample_rate()
@@ -760,6 +765,7 @@ class SignalAnalysisScreen(QWidget):
         self.results_dialog.activateWindow()
 
     def show_sweep_plot_window(self):
+
         if not hasattr(self, "sweep_results") or not self.sweep_results:
             QMessageBox.warning(
                 self,
@@ -769,23 +775,84 @@ class SignalAnalysisScreen(QWidget):
             return
 
         freqs = [item["frequency"] for item in self.sweep_results]
-        diss = [item["dissipation_percent"] for item in self.sweep_results]
+        diss = [round(float(item["dissipation_percent"]), 7) for item in self.sweep_results]
+        voltages = [round(float(item["voltage"]), 8) for item in self.sweep_results]
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Dissipation über Frequenz")
-        dialog.resize(900, 600)
+        dialog.setWindowTitle("Sweep-Ergebnisse")
+        dialog.resize(1000, 800)
 
         layout = QVBoxLayout()
 
-        plot_widget = pg.PlotWidget(title="Dissipation über Frequenz")
-        plot_widget.setLabel("bottom", "Frequenz [Hz]")
-        plot_widget.setLabel("left", "Dissipation [%]")
-        plot_widget.getAxis("left").enableAutoSIPrefix(False)
-        plot_widget.getAxis("bottom").enableAutoSIPrefix(False)
-        plot_widget.showGrid(x=True, y=True)
-        plot_widget.setYRange(-0.1, 0.1, padding=0)
+        # -------------------------------------------------
+        # Plot 1: Generatorspannung
+        # -------------------------------------------------
+        voltage_plot = pg.PlotWidget(title="Benötigte Generatorspannung über Frequenz")
+        voltage_plot.setLabel("bottom", "Frequenz [Hz]")
+        voltage_plot.setLabel("left", "Generatorspannung [V]")
+        voltage_plot.getAxis("left").enableAutoSIPrefix(False)
+        voltage_plot.getAxis("bottom").enableAutoSIPrefix(False)
+        voltage_plot.showGrid(x=True, y=True)
 
-        plot_widget.plot(
+        voltage_plot.plot(
+            freqs,
+            voltages,
+            pen=pg.mkPen(width=2),
+            symbol="o",
+            symbolSize=8
+        )
+
+        voltage_text = pg.TextItem("", anchor=(0, 1))
+        voltage_text.setZValue(100)
+        voltage_text.hide()
+        voltage_plot.addItem(voltage_text)
+
+        freqs_np = np.array(freqs, dtype=float)
+        voltages_np = np.array(voltages, dtype=float)
+
+        def on_voltage_mouse_moved(pos):
+            if not voltage_plot.sceneBoundingRect().contains(pos):
+                voltage_text.hide()
+                return
+
+            mouse_point = voltage_plot.plotItem.vb.mapSceneToView(pos)
+            x_mouse = mouse_point.x()
+
+            idx = int(np.argmin(np.abs(freqs_np - x_mouse)))
+
+            f_val = freqs_np[idx]
+            u_val = voltages_np[idx]
+
+            x_range = voltage_plot.viewRange()[0]
+            tolerance = (x_range[1] - x_range[0]) * 0.03
+
+            if abs(f_val - x_mouse) <= tolerance:
+                voltage_text.setText(
+                    f"f = {f_val:.1f} Hz\n"
+                    f"U = {u_val:.4f} V"
+                )
+                voltage_text.setPos(f_val, u_val)
+                voltage_text.show()
+            else:
+                voltage_text.hide()
+
+        voltage_proxy = pg.SignalProxy(
+            voltage_plot.scene().sigMouseMoved,
+            rateLimit=60,
+            slot=lambda evt: on_voltage_mouse_moved(evt[0])
+        )
+
+        # -------------------------------------------------
+        # Plot 2: Dissipation
+        # -------------------------------------------------
+        diss_plot = pg.PlotWidget(title="Dissipation über Frequenz")
+        diss_plot.setLabel("bottom", "Frequenz [Hz]")
+        diss_plot.setLabel("left", "Dissipation [%]")
+        diss_plot.getAxis("left").enableAutoSIPrefix(False)
+        diss_plot.getAxis("bottom").enableAutoSIPrefix(False)
+        diss_plot.showGrid(x=True, y=True)
+
+        diss_plot.plot(
             freqs,
             diss,
             pen=pg.mkPen(width=2),
@@ -793,9 +860,55 @@ class SignalAnalysisScreen(QWidget):
             symbolSize=8
         )
 
-        layout.addWidget(plot_widget)
-        dialog.setLayout(layout)
+        diss_text = pg.TextItem("", anchor=(0, 1))
+        diss_text.setZValue(100)
+        diss_text.hide()
+        diss_plot.addItem(diss_text)
 
+        diss_np = np.array(diss, dtype=float)
+
+        def on_diss_mouse_moved(pos):
+            if not diss_plot.sceneBoundingRect().contains(pos):
+                diss_text.hide()
+                return
+
+            mouse_point = diss_plot.plotItem.vb.mapSceneToView(pos)
+            x_mouse = mouse_point.x()
+
+            idx = int(np.argmin(np.abs(freqs_np - x_mouse)))
+
+            f_val = freqs_np[idx]
+            d_val = diss_np[idx]
+
+            x_range = diss_plot.viewRange()[0]
+            tolerance = (x_range[1] - x_range[0]) * 0.03
+
+            if abs(f_val - x_mouse) <= tolerance:
+                diss_text.setText(
+                    f"f = {f_val:.1f} Hz\n"
+                    f"D = {d_val:.3f} %"
+                )
+                diss_text.setPos(f_val, d_val)
+                diss_text.show()
+            else:
+                diss_text.hide()
+
+        diss_proxy = pg.SignalProxy(
+            diss_plot.scene().sigMouseMoved,
+            rateLimit=60,
+            slot=lambda evt: on_diss_mouse_moved(evt[0])
+        )
+
+        # Wichtig: Referenzen speichern, sonst kann Python sie löschen
+        dialog.voltage_proxy = voltage_proxy
+        dialog.diss_proxy = diss_proxy
+        dialog.voltage_text = voltage_text
+        dialog.diss_text = diss_text
+
+        layout.addWidget(voltage_plot)
+        layout.addWidget(diss_plot)
+
+        dialog.setLayout(layout)
         dialog.exec()
 
     def _get_measurement_duration(self):
@@ -1687,7 +1800,6 @@ class MainWindow(QWidget):
 
                 for step in range(1, MAX_AUTO_STEPS + 1):
                     generator.set_output(f0, voltage)
-
                     self.signal_screen.log(
                         f"Schritt {step}: f = {f0:.1f} Hz, U = {voltage:.4f} V"
                     )
@@ -1716,6 +1828,8 @@ class MainWindow(QWidget):
                         f"Dissipation = {wave['dissipation_percent']:.3f} %"
                     )
 
+                    QApplication.processEvents()
+                    time.sleep(0.0)
                     QApplication.processEvents()
 
                     if ok:
@@ -1761,6 +1875,7 @@ class MainWindow(QWidget):
                 self.signal_screen.current_f0 = f0
         except ValueError:
             pass
+
     '''
     Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
     angepasst werden, um eine Zielamplitude der hinlaufenden Welle |A| zu erreichen. Die Funktion iteriert über mehrere Schritte, 
@@ -1791,7 +1906,7 @@ class MainWindow(QWidget):
                 )
 
             self.signal_screen.current_f0 = f0
-            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)  # sonst SOURCE_SCARLETT, damit die gemessenen Werte nicht mit der Simulation vermischt werden
+            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)  # sonst SOURCE_SCARLETT
             self.signal_screen.refresh_focusrite_devices()
 
             self.stack.setCurrentWidget(self.signal_screen)

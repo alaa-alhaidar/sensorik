@@ -2,7 +2,7 @@ import numpy as np
 
 def wave_number(freq_hz: np.ndarray, c: float) -> np.ndarray:
     # Berechnet die Wellenzahl aus der Frequenz f und
-    # der Schallgeschwindigkeit c:
+    # Phasegeschwindigkeit pro meter pro Sekunde c. Die Wellenzahl k ist definiert als:
     # k = 2*pi*f / c
     return 2.0 * np.pi * freq_hz / c
 
@@ -41,24 +41,3 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     # residual_norm = Güte der Anpassung
     return A_est, B_est, residual_norm
 
-# Berechnet die exakten A- und B-Werte für die Messungen P1, P2 bei der Frequenz freq_hz
-def estimate_forward_reflected_two_mics_exact(P1, P2, freq_hz, cfg):
-    k = wave_number(float(freq_hz), cfg.c)
-
-    M = np.array([
-        [np.exp(-1j * k * cfg.x1), np.exp(1j * k * cfg.x1)],
-        [np.exp(-1j * k * cfg.x2), np.exp(1j * k * cfg.x2)],
-    ], dtype=complex)
-
-    b = np.array([P1, P2], dtype=complex)
-
-    # löse das lineare Gleichungssystem M @ [A; B] = b
-    solution = np.linalg.solve(M, b)
-    
-
-
-
-    A_exact = solution[0]
-    B_exact = solution[1]
-
-    return A_exact, B_exact
