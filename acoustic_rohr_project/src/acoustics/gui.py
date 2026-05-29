@@ -50,10 +50,6 @@ from focusrite_interface import FocusriteInterface
 from estimation import estimate_forward_reflected_three_mics_ls
 from generator_hdw_panel import TektronixAFG320
 
-# Kalibrierungsparameter für die Simulation
-
-
-
 # Feste Parameter für die automatische Messung
 SWEEP_START_FREQ = 300.0
 SWEEP_STOP_FREQ = 2000.0
@@ -76,9 +72,9 @@ USE_SIMULATED_GENERATOR = True   # Zuhause / Simulation
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
-MEASUREMENT_DURATION = 10.0   # Standardwert für das Eingabefeld
+MEASUREMENT_DURATION = 1.0   # Standardwert für das Eingabefeld
 WINDOW_SECONDS = 1.0          # Standardwert für das Eingabefeld
-DISPLAY_PERIODS = 1          # Anzeige: 5 Perioden
+DISPLAY_PERIODS = 5          # Anzeige: 5 Perioden
 
 # FFT-Anzeige
 FFT_MAX_FREQ = 2000
@@ -96,6 +92,13 @@ D = 1   → volle Absorption, keine Reflexion
 D = 0.64 → 64 % Energieverlust, 36 % Reflexion
 '''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
+
+
+CALIBRATION = {
+    1: 6.666,
+    2: 6.666,
+    3: 6.666,
+}
 
 # format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
 def format_voltage(value):
@@ -665,7 +668,7 @@ class SignalAnalysisScreen(QWidget):
             time_plot.setLabel("bottom", "Zeit [sek]")
             time_plot.setLabel("left", "V")
             time_plot.getAxis("left").enableAutoSIPrefix(False)
-            time_plot.showGrid(x=True, y=False)
+            time_plot.showGrid(x=True, y=True)
             time_plot.setMouseEnabled(x=True, y=False)
             time_curve = time_plot.plot([], [], pen="y")
             time_plot.scene().sigMouseClicked.connect(
@@ -676,7 +679,7 @@ class SignalAnalysisScreen(QWidget):
             fft_plot.setLabel("bottom", "Frequenz [Hz]")
             fft_plot.setLabel("left", "|FFT|")
             fft_plot.getAxis("left").enableAutoSIPrefix(False)
-            fft_plot.showGrid(x=True, y=False)
+            fft_plot.showGrid(x=True, y=True)
             fft_plot.setMouseEnabled(x=True, y=False)
             fft_curve = fft_plot.plot([], [], pen="y")
             fft_plot.setXRange(0, FFT_MAX_FREQ)
@@ -1198,6 +1201,9 @@ class SignalAnalysisScreen(QWidget):
 
             signal = np.asarray(signal, dtype=np.float32)
 
+            for ch in range(self.num_channels):
+                signal[:, ch] *= CALIBRATION[ch + 1]
+
             if signal.size == 0:
                 raise ValueError(
                     "Leeres Signal: Die Aufnahme hat 0 Samples geliefert. "
@@ -1360,8 +1366,13 @@ class SignalAnalysisScreen(QWidget):
             if kind == "audio":
                 chunk = np.asarray(payload, dtype=np.float32)
 
+
                 if chunk.ndim == 1:
                     chunk = chunk[:, np.newaxis]
+
+                
+                for ch in range(min(self.num_channels, chunk.shape[1])):
+                    chunk[:, ch] *= CALIBRATION[ch + 1]
 
                 if chunk.shape[1] < self.num_channels:
                     self.log(f"Warnung: nur {chunk.shape[1]} Kanäle empfangen.")
@@ -1400,7 +1411,7 @@ class SignalAnalysisScreen(QWidget):
     # wie in der FFT-Berechnung: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t)), also die Projektion des Signals auf die komplexe 
     # Referenzschwingung mit Frequenz f0, normiert mit 2/n wegen der Amplitudenanpassung.
 
-    def measure_at_frequency_by_f0(self, signal, f0):
+    def measure_at_frequency_by_f0(self, signal, f0, channel_index):
         #print(f"measure_at_frequency_by_f0: signal shape={signal.shape}, {signal.ndim},f0={f0}")
         signal = np.asarray(signal, dtype=np.float64).flatten() # Sicherstellen, dass signal eindimensional ist
 
@@ -1431,9 +1442,11 @@ class SignalAnalysisScreen(QWidget):
         ref = np.exp(-1j * 2.0 * np.pi * f0 * t)  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
         P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung
         print(f"measure_at_frequency_by_f0: P={P}, |P|={np.abs(P):.6e}, angle(P)={np.angle(P):.6f} rad, {np.degrees(np.angle(P)):.2f}°")
+
+        rms = np.sqrt(np.mean(signal**2))
         amplitude = np.abs(P)
         phase = np.angle(P)
-        rms = np.sqrt(np.mean(signal**2))
+        
 
         return P, amplitude, phase, rms
 
@@ -1449,9 +1462,9 @@ class SignalAnalysisScreen(QWidget):
                 f"Vorhanden: {signal.shape[1]}."
             )
 
-        P1, amp1, phase1, rms1 = self.measure_at_frequency_by_f0(signal[:, 0], f0)
-        P2, amp2, phase2, rms2 = self.measure_at_frequency_by_f0(signal[:, 1], f0)
-        P3, amp3, phase3, rms3 = self.measure_at_frequency_by_f0(signal[:, 2], f0)
+        P1, amp1, phase1, rms1 = self.measure_at_frequency_by_f0(signal[:, 0], f0, channel_index=1)
+        P2, amp2, phase2, rms2 = self.measure_at_frequency_by_f0(signal[:, 1], f0, channel_index=2)
+        P3, amp3, phase3, rms3 = self.measure_at_frequency_by_f0(signal[:, 2], f0, channel_index=3)
 
         return {
             "P1": P1,
