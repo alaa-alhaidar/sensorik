@@ -33,7 +33,7 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
         if len(residuals) > 0:
             residual_norm[i] = np.sqrt(residuals[0])
         else:
-            residual_norm[i] = np.linalg.norm(M @ solution - b)
+            residual_norm[i] = np.linalg.norm(M @ solution - b) # @ ist Matrixmultiplikation
 
     # Rückgabe:
     # A_est        = geschätzte hinlaufende Welle

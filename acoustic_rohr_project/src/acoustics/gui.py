@@ -48,6 +48,17 @@ from generator_interface import SimulatedGenerator
 from focusrite_interface import FocusriteInterface
 from estimation import estimate_forward_reflected_three_mics_ls
 from generator_hdw_panel import TektronixAFG320
+from signal_process import (
+    build_wave_config,
+    process_recorded_signal,
+    measure_at_frequency_by_f0 as sp_measure_at_frequency_by_f0,
+    measure_three_mics_at_frequency_by_f0 as sp_measure_three_mics_at_frequency_by_f0,
+    compute_fft_from_signal as sp_compute_fft_from_signal,
+    compute_forward_reflected_results as sp_compute_forward_reflected_results,
+    build_mic_result_dict as sp_build_mic_result_dict,
+    format_microphone_logs,
+    format_wave_logs,
+)
 
 # Feste Parameter für die automatische Messung
 SWEEP_START_FREQ = 300.0
@@ -572,7 +583,7 @@ class SignalAnalysisScreen(QWidget):
         self.get_generator = None
 
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_audio_plot)
+        self.timer.timeout.connect(self.update_time_plot)
 
         self._build_ui()
         self._connect_signals()
@@ -1118,7 +1129,7 @@ class SignalAnalysisScreen(QWidget):
                 self.last_mode = "live"
 
                 f0 = self._get_f0()
-                self.update_time_plots(signal, f0)
+                self.update_time_plot(signal, f0)
                 self.compute_fft_from_signal(signal)
 
                 self.log("Simulierter Live-Block erzeugt.")
@@ -1150,7 +1161,10 @@ class SignalAnalysisScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
 
-    def update_time_plots(self, signal, f0):
+    def get_display_periods(self):
+        return self.display_periods_spin.value()
+    
+    def update_time_plot(self, signal, f0):
         sample_rate = self._get_sample_rate()
         num_samples = signal.shape[0]
 
@@ -1187,412 +1201,100 @@ class SignalAnalysisScreen(QWidget):
                 0, display_samples / sample_rate, padding=0
             )
 
+    def _write_log_entries(self, entries):
+        for text, category in entries:
+            self.log(text, category=category)
+
     def log_microphone_results(self, m, f0):
-        phase_ref = m["phase1"] # sucht in array nach phase1, phase2, phase3
-        self.log("Messergebnisse", category="title")
+        self._write_log_entries(format_microphone_logs(m, self.num_channels))
 
-        amp_ref = m["amp1"]
-        phase_ref = m["phase1"]
-
-        for i in range(1, self.num_channels + 1):
-            amp = m[f"amp{i}"]
-            phase = m[f"phase{i}"]
-
-            # Betrag / Amplitude
-            amp_diff = amp - amp_ref
-            amp_diff_abs = abs(amp_diff)
-            amp_diff_percent = (amp / (amp_ref + 1e-12) - 1.0) * 100.0
-            amp_diff_percent_abs = abs(amp_diff_percent)
-
-            # Phase
-            phase_shift = phase - phase_ref
-            phase_shift_abs = abs(phase_shift)
-            phase_shift_deg = np.degrees(phase_shift)
-            phase_shift_deg_abs = abs(phase_shift_deg)
-
-            # Prozent einer vollen Periode: 2*pi rad = 360° = 100 %
-            phase_shift_percent = phase_shift_abs / (2.0 * np.pi) * 100.0
-
-            self.log(f"Mikrofon {i}", category="title")
-
-            self.log(
-                f"Betrag |P{i}| = {amp:.6e}"
-            )
-
-            self.log(
-                f"Betrag-Abweichung zu Mikrofon 1 = {amp_diff_abs:.6e}"
-            )
-
-            self.log(
-                f"Betrag-Abweichung in Prozent = {amp_diff_percent_abs:.3f} %"
-            )
-
-            self.log(
-                f"Phase(P{i}) = {phase:.6f} rad = {np.degrees(phase):.2f}°"
-            )
-
-            self.log(
-                f"Phase-Abweichung zu Mikrofon 1 = {phase_shift_abs:.6f} rad "
-                f"= {phase_shift_deg_abs:.3f}°"
-            )
-
-            self.log(
-                f"Phase-Abweichung in Prozent einer Periode = {phase_shift_percent:.3f} %"
-            )
-            
-            
-    # Diese Funktion berechnet die hinlaufende und rücklaufende Welle aus den Mikrofonmessungen und loggt die Ergebnisse
     def log_forward_reflected_waves(self, m, f0):
-        cfg = self._get_wave_config()
-        freqs = np.array([f0], dtype=float) # erstellt ein Array mit einem Element, der Messfrequenz f0, und Datentyp float
+        wave = self.compute_forward_reflected_results(m, f0)
+        self._write_log_entries(format_wave_logs(wave))
 
-        A, B, residual = estimate_forward_reflected_three_mics_ls(
-            np.array([m["P1"]], dtype=complex),
-            np.array([m["P2"]], dtype=complex),
-            np.array([m["P3"]], dtype=complex),
-            freqs,
-            cfg,
-        )
-
-        A0 = A[0]
-        B0 = B[0]
-        r_complex = B0 / (A0 + 1e-12)
-        r_abs = np.abs(r_complex)
-        r_phase = np.angle(r_complex)
-        r_phase_deg = np.degrees(r_phase)
-
-        R = r_abs ** 2
-        D = 1.0 - R
-        self.log("Wellenzerlegung: hinlaufende und rücklaufende Welle", category="title")
-
-        self.log(f"Hinlaufende Welle A = {A0.real:.6e} + j({A0.imag:.6e})")
-        self.log(f"|A| = {np.abs(A0):.6e}")
-        self.log(f"Phase(A) = {np.angle(A0):.6f} rad = {np.degrees(np.angle(A0)):.2f}°")
-
-        self.log(f"Rücklaufende Welle B = {B0.real:.6e} + j({B0.imag:.6e})")
-        self.log(f"|B| = {np.abs(B0):.6e}")
-        self.log(f"Phase(B) = {np.angle(B0):.6f} rad = {np.degrees(np.angle(B0)):.2f}°")
-
-        self.log(f"Komplexer Reflexionsfaktor r = B/A = {r_complex.real:.6e} + j({r_complex.imag:.6e})")
-        self.log(f"|r| = |B/A| = {r_abs:.6f}")
-        self.log(f"Phase(r) = {r_phase:.6f} rad = {r_phase_deg:.2f}°")
-
-        self.log(f"Reflexionsgrad R = |r|² = {R:.6f}")
-        self.log(f"Dissipation D = 1 - R = {D:.6f}")
-        self.log(f"Dissipation = {D * 100.0:.3f} %")
-        self.log(f"Residuum Least Squares = {residual[0]:.6e}")
-
-    # Zeitsignal
-    # Aufnahme von zeit signalen für eine bestimmte Dauer
     def record_for_time(self, duration=None):
         try:
-            
             if duration is None:
                 duration = MEASUREMENT_DURATION
                 self.log(f"Aufnahme gestartet: Dauer={duration:.3f} s")
 
             duration = float(duration)
-
             if duration <= 0:
-                raise ValueError(
-                    f"Aufnahmedauer muss größer als 0 sein. duration={duration}"
-                )
+                raise ValueError(f"Aufnahmedauer muss größer als 0 sein. duration={duration}")
 
             self.timer.stop()
-
             if self.focusrite is not None:
                 self.focusrite.stop_input_stream()
                 self.focusrite = None
 
             if self._using_simulation():
-                signal = self._generate_simulated_signal(duration)
-                print(f"Simulierte Signale: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
+                raw_signal = self._generate_simulated_signal(duration)
+                print(f"Simulierte Signale: signal.shape={raw_signal.shape}, signal.dtype={raw_signal.dtype}")
             else:
                 self.focusrite = self._create_focusrite()
-                signal = self.focusrite.record_input(duration=duration)
-                print(f"Aufnahme von Fokusrite: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
-
-            signal = np.asarray(signal, dtype=np.float32)
-
-            for ch in range(self.num_channels):
-                signal[:, ch] *= CALIBRATION[ch + 1]
-
-            if signal.size == 0:
-                raise ValueError(
-                    "Leeres Signal: Die Aufnahme hat 0 Samples geliefert. "
-                    "Prüfe Scarlett-Eingang, macOS-Mikrofonberechtigung und Sample-Rate."
-                )
-
-            if signal.ndim == 1:
-                signal = signal[:, np.newaxis]
-
-            if signal.shape[0] < 2:
-                raise ValueError(f"Signal ist zu kurz. Samples={signal.shape[0]}")
-
-            if signal.shape[1] < self.num_channels:
-                raise ValueError(
-                    f"Für die Auswertung werden {self.num_channels} Eingangskanäle benötigt. "
-                    f"Das Gerät liefert nur {signal.shape[1]}."
-                )
-
-            self.last_recording = signal # speichert die aktuelle Aufnahme, damit wir sie später in der Ergebnisanzeige verwenden können
-            self.last_mode = "record" # markiert, dass die letzte Aufnahme eine "record"-Aufnahme war (im Gegensatz zu "live")
-
-            # Debug-Ausgaben für die aufgenommenen Signale
-            print(f"Aufgenommenes Signal: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
-            print(f"Signal min={signal.min():.6e}, max={signal.max():.6e}, mean={signal.mean():.6e}, std={signal.std():.6e}")
-            print(f"Reele Werte Mikrofon 1: {signal[:5, 0]}")
-            print(f"Reele Werte Mikrofon 2: {signal[:5, 1]}")
-            print(f"Reele Werte Mikrofon 3: {signal[:5, 2]}")
+                raw_signal = self.focusrite.record_input(duration=duration)
+                print(f"Aufnahme von Fokusrite: signal.shape={raw_signal.shape}, signal.dtype={raw_signal.dtype}")
 
             f0 = self._get_f0()
-            num_samples = signal.shape[0]
             sample_rate = self._get_sample_rate()
+            result = process_recorded_signal(
+                raw_signal=raw_signal,
+                duration=duration,
+                f0=f0,
+                sample_rate=sample_rate,
+                num_channels=self.num_channels,
+                calibration=CALIBRATION,
+                wave_cfg=self._get_wave_config(),
+            )
 
-            self.update_time_plots(signal, f0) # aktualisiert die Zeitplots mit der aufgenommenen Messung
+            signal = result["signal"]
+            self.last_recording = signal
+            self.last_mode = "record"
 
-            freq_resolution = sample_rate / num_samples
-            self.log(f"Messeinstellungen", category="title")
-            self.log(f"Aufnahmdauer: {duration:.0f} s")
-            self.log(f"Samples pro Mikrofon: {num_samples}")
-            self.log(f"Sample-Rate: {sample_rate:.1f} Hz")
-            self.log(f"Messfrequenz: {f0:.2f} Hz")
-            self.log(f"Frequenzauflösung Δf = fs / N = 1 / T = {freq_resolution:.3f} Hz")
+            self.update_time_plot(signal, f0)
+            self.fft_freq_axis = result["fft"]["freqs"]
+            self.fft_buffers = result["fft"]["fft_buffers"]
+            self._refresh_fft_plots()
+            self._write_log_entries(result["log_entries"])
 
-            m = self.measure_three_mics_at_frequency_by_f0(signal, f0) # berechnet die komplexen Werte an den Mikrofonen für die Messfrequenz f0,
-
-            self.log_microphone_results(m, f0) # loggt die Messergebnisse für jedes Mikrofon (Betrag, Phase, Abweichungen zu Mikrofon 1)
-
-            self.log_forward_reflected_waves(m, f0) # berechnet die hinlaufende und rücklaufende Welle aus den Mikrofonmessungen, loggt die Ergebnisse und berechnet den Reflexionsfaktor, Reflexionsgrad und Dissipation
-
-            self.compute_fft_from_signal(signal) # berechnet die FFT des aufgenommenen Signals, aktualisiert die FFT-Plots und loggt die Amplitude um die Messfrequenz f0 herum
-
-            mic_results = self.build_mic_result_dict(m, f0) # erstellt ein Dictionary mit den Messergebnissen für die Mikrofone, das in der Ergebnisanzeige verwendet wird
-
-            self.results_dialog = ComplexResultsDialog(mic_results, parent=self) # erstellt die Ergebnisanzeige mit den Messergebnissen, damit sie später angezeigt werden kann
-
-            return m # gibt die Messergebnisse zurück, damit sie in der Frequenzschleife verwendet werden können
+            self.results_dialog = ComplexResultsDialog(result["mic_results"], parent=self)
+            return result["m"]
 
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
             return None
 
-    # https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html
     def compute_fft_from_signal(self, signal):
         try:
-            signal = np.asarray(signal, dtype=np.float64)
-
-            if signal.ndim == 1:
-                signal = signal[:, np.newaxis]
-
-            if signal.shape[1] < self.num_channels:
-                raise ValueError(
-                    f"Für FFT werden {self.num_channels} Kanäle benötigt. "
-                    f"Vorhanden: {signal.shape[1]}."
-                )
-
-            sample_rate = self._get_sample_rate()
-            f0 = self._get_f0()
-            n = signal.shape[0]  # Anzahl Samples, die in der Aufnahme enthalten sind (z.B. 48000 für 1 Sekunde bei 48 kHz)
-
-            if n < 2:
-                raise ValueError("Signal ist zu kurz für FFT.")
-            # https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html#numpy.fft.fftfreq
-            freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate)  # Frequenzachsenwerte
-            self.fft_freq_axis = freqs.astype(np.float32)
-            window = np.hanning(n)  # Hanning-Fenster
-            window_norm = np.sum(window)  # Normierungskonstante
-
-            self.fft_buffers = []
-            f0_index = int(np.argmin(np.abs(freqs - f0)))
-            self.log("FFT-Auswertung mit Hanning-Fenster", category="title")
-
-            for ch in range(self.num_channels):
-
-                """
-                x = signal[:, ch]           # reelle Messwerte vom Mikrofon
-                spectrum = np.fft.rfft(x)   # komplexe Frequenzwerte
-                amp = np.abs(spectrum)      # Betrag / Amplitude
-                phase = np.angle(spectrum)  # Phase
-                np.abs(spectrum)            → Betrag der FFT
-                2.0                         → Korrektur, weil nur positive Frequenzen
-                /window_norm                → Korrektur wegen Hanning-Fenster
-                """
-
-                x = signal[:, ch]
-                spectrum = np.fft.rfft(x * window)  # Hanning-Fenster anwenden und FFT berechnen damit die Amplituden korrekt bleiben,
-
-                """
-                spectrum enthält für jede Frequenzlinie einen komplexen Wert:
-                Realteil + Imaginärteil j
-                """
-                amp = (2.0 * np.abs(spectrum) / window_norm)  # da wir nur die positiven Frequenzen betrachten, müssen wir mit 2.0 multiplizieren, um die korrekte Amplitude zu erhalten
-                self.fft_buffers.append(amp.astype(np.float32))
-                self.log(f"Mikrofon {ch + 1},FFT-Amplitude bei {freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}")
-
-            self._refresh_fft_plots()
-            # self.log("10 FFT-Werte", category="title")
-            # 10 FFT-Werte um die Messfrequenz f0 loggen
-            half_window = 5
-            start_idx = max(0, f0_index - half_window)
-            end_idx = min(len(freqs), f0_index + half_window + 1)
-
-            """
-            self.log(
-                f"{'Index':>10}  {'Frequenz [Hz]':>18}  {'Abstand zu f0 [Hz]':>18}  {'Amplitude [V]':>18}"
+            result = sp_compute_fft_from_signal(
+                signal=signal,
+                sample_rate=self._get_sample_rate(),
+                f0=self._get_f0(),
+                num_channels=self.num_channels,
             )
-            """
-
-            for idx in range(start_idx, end_idx):
-                freq = freqs[idx]
-                distance_to_f0 = freq - f0
-
-                """
-                
-                self.log(
-                    f"{idx:10d}"
-                    f"{freq:18.3f}"
-                    f"{distance_to_f0:18.1f}     "
-                    f"{amp[idx]:18.6e}"
-                )
-                """
-
+            self.fft_freq_axis = result["freqs"]
+            self.fft_buffers = result["fft_buffers"]
+            self._write_log_entries(result["log_entries"])
+            self._refresh_fft_plots()
+            return result
         except Exception as e:
             QMessageBox.critical(self, "FFT-Fehler", str(e))
+            return None
 
-    def get_display_periods(self):
-        return self.display_periods_spin.value()
-    
-    def update_audio_plot(self):
-        if self.focusrite is None:
-            return
-
-        updated = False
-
-        while not self.focusrite.audio_queue.empty():
-            kind, payload = self.focusrite.audio_queue.get()
-
-            if kind == "status":
-                self.log(f"Audio-Status: {payload}")
-                continue
-
-            if kind == "audio":
-                chunk = np.asarray(payload, dtype=np.float32)
-
-
-                if chunk.ndim == 1:
-                    chunk = chunk[:, np.newaxis]
-
-                
-                for ch in range(min(self.num_channels, chunk.shape[1])):
-                    chunk[:, ch] *= CALIBRATION[ch + 1]
-
-                if chunk.shape[1] < self.num_channels:
-                    self.log(f"Warnung: nur {chunk.shape[1]} Kanäle empfangen.")
-                    continue
-
-                self.last_chunk = chunk
-                self.last_mode = "live"
-
-                # Für Live: letzte Samples direkt anzeigen
-                f0 = self._get_f0()
-                sample_rate = self._get_sample_rate()
-
-                display_periods = self.get_display_periods()
-                display_seconds = display_periods / f0
-
-                display_samples = int(round(display_seconds * sample_rate))
-                display_samples = max(2, min(display_samples, chunk.shape[0]))
-
-                self.time_axis = (
-                    np.arange(display_samples, dtype=np.float32) / sample_rate
-                )
-
-                for ch in range(self.num_channels):
-                    self.plot_buffers[ch] = chunk[-display_samples:, ch]
-                    self.time_plot_curves[ch].setData(
-                        self.time_axis, self.plot_buffers[ch]
-                    )
-                    self.time_plot_widgets[ch].setXRange(0, display_seconds, padding=0)
-
-                updated = True
-
-        if updated:
-            self._refresh_time_plots()
-
-    # Diese Funktion berechnet die komplexe Amplitude P, den Betrag, die Phase und den RMS-Wert des Signals bei der Frequenz f0.
-    # wie in der FFT-Berechnung: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t)), also die Projektion des Signals auf die komplexe 
-    # Referenzschwingung mit Frequenz f0, normiert mit 2/n wegen der Amplitudenanpassung.
-
-    def measure_at_frequency_by_f0(self, signal, f0, channel_index):
-        #print(f"measure_at_frequency_by_f0: signal shape={signal.shape}, {signal.ndim},f0={f0}")
-        signal = np.asarray(signal, dtype=np.float64).flatten() # Sicherstellen, dass signal eindimensional ist
-
-        if signal.size == 0:
-            raise ValueError("Leeres Signal.")
-
-        if f0 <= 0:
-            raise ValueError("f0 muss größer als 0 sein.")
-
-        n = (signal.size)  # Anzahl Samples im Signal (z.B. 48000 für 1 Sekunde bei 48 kHz)
-        
-        t = (np.arange(n, dtype=np.float64) / self._get_sample_rate())  # Zeitachse für die Samples
-
-        # https://numpy.org/doc/stable/reference/routines.fft.html
-        # FFT bei f0 berechnen: P = (2/n) * Summe(signal * exp(-j*2*pi*f0*t))
-        '''
-        signal: [x0, x1, x2, ...] 48000 Samples von einem Mikrofon
-        t: [t0, t1, t2, ...] Zeitwerte für die Samples, z.B. t0=0s, t1=1/48000s, t2=2/48000s, ...
-        ref:    [r0, r1, r2, ...] komplexe Referenzschwingung mit Frequenz f0, z.B. r0=1, r1=exp(-j*2*pi*f0*t1), r2=exp(-j*2*pi*f0*t2), ...
-        '''
-        # Erzeugt eine komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft.
-        '''
-        Wenn im Signal wirklich f0 enthalten ist, dann passt das Signal zur Referenz. Beim Summieren addiert sich dieser Anteil stark.
-        Andere Frequenzen passen nicht zur Referenz. Beim Summieren heben sie sich größtenteils auf.
-        gleiche Frequenz f0     → Summe wird groß
-        andere Frequenzen       → Summe wird klein
-        '''
-        ref = np.exp(-1j * 2.0 * np.pi * f0 * t)  # Komplexe Referenzschwingung mit Frequenz f0, die über die Zeit läuft
-        P = (2.0 / n) * np.sum(signal * ref)  # Komplexe Amplitude der Schwingung bei f0, normiert mit 2/n wegen der Amplitudenanpassung
-        print(f"measure_at_frequency_by_f0: P={P}, |P|={np.abs(P):.6e}, angle(P)={np.angle(P):.6f} rad, {np.degrees(np.angle(P)):.2f}°")
-
-        rms = np.sqrt(np.mean(signal**2))
-        amplitude = np.abs(P)
-        phase = np.angle(P)
-        
-
-        return P, amplitude, phase, rms
+    def measure_at_frequency_by_f0(self, signal, f0, channel_index=None):
+        return sp_measure_at_frequency_by_f0(
+            signal_1d=signal,
+            f0=f0,
+            sample_rate=self._get_sample_rate(),
+        )
 
     def measure_three_mics_at_frequency_by_f0(self, signal, f0):
-        signal = np.asarray(signal, dtype=np.float64)
-
-        if signal.ndim == 1:
-            signal = signal[:, np.newaxis]
-
-        if signal.shape[1] < self.num_channels:
-            raise ValueError(
-                f"Es werden {self.num_channels} Kanäle benötigt. "
-                f"Vorhanden: {signal.shape[1]}."
-            )
-
-        P1, amp1, phase1, rms1 = self.measure_at_frequency_by_f0(signal[:, 0], f0, channel_index=1)
-        P2, amp2, phase2, rms2 = self.measure_at_frequency_by_f0(signal[:, 1], f0, channel_index=2)
-        P3, amp3, phase3, rms3 = self.measure_at_frequency_by_f0(signal[:, 2], f0, channel_index=3)
-
-        return {
-            "P1": P1,
-            "P2": P2,
-            "P3": P3,
-            "amp1": amp1,
-            "amp2": amp2,
-            "amp3": amp3,
-            "phase1": phase1,
-            "phase2": phase2,
-            "phase3": phase3,
-            "rms1": rms1,
-            "rms2": rms2,
-            "rms3": rms3,
-        }
+        return sp_measure_three_mics_at_frequency_by_f0(
+            signal=signal,
+            f0=f0,
+            sample_rate=self._get_sample_rate(),
+            num_channels=self.num_channels,
+        )
 
     def open_time_window(self, ch):
         if ch < 0 or ch >= self.num_channels:
@@ -1638,78 +1340,15 @@ class SignalAnalysisScreen(QWidget):
         self.open_plot_windows.append(dialog)
 
     def _get_wave_config(self):
-        positions = [MIC_X1, MIC_X2, MIC_X3]
-        if SPEED_OF_SOUND <= 0:
-            raise ValueError("SPEED_OF_SOUND muss größer als 0 sein.")
-        if len(set(positions)) != 3:
-            raise ValueError("MIC_X1, MIC_X2 und MIC_X3 müssen unterschiedlich sein.")
-        return SimpleNamespace(c=SPEED_OF_SOUND, x1=MIC_X1, x2=MIC_X2, x3=MIC_X3)
+        return build_wave_config(SPEED_OF_SOUND, MIC_X1, MIC_X2, MIC_X3)
 
     def cleanup(self):
         self.stop_audio()
-    '''
-    diese Funktion bereitet die Ergebnisse der Mikrofonmessungen auf, indem sie die Phasenverschiebungen relativ zum ersten 
-    Mikrofon berechnet und in einem übersichtlichen Dictionary speichert. Sie berechnet auch die Phasenverschiebung in Grad 
-    und die Zeitverschiebung in Millisekunden für jedes Mikrofon im Vergleich zum ersten Mikrofon.
-    '''
     def build_mic_result_dict(self, m, f0):
-        phase_ref = m["phase1"]
-        result = {}
+        return sp_build_mic_result_dict(m, f0, num_mics=self.num_channels)
 
-        for i in range(1, 4):
-            phase_shift = m[f"phase{i}"] - phase_ref # Phasenverschiebung relativ zum ersten Mikrofon
-            phase_shift_deg = np.degrees(phase_shift)
-            time_shift_ms = phase_shift / (2.0 * np.pi * f0) * 1000.0
-
-            result[f"P{i}"] = m[f"P{i}"]
-            result[f"amp{i}"] = m[f"amp{i}"]
-            result[f"phase{i}"] = m[f"phase{i}"]
-            result[f"rms{i}"] = m[f"rms{i}"]
-            result[f"phase_shift{i}"] = phase_shift
-            result[f"phase_shift_deg{i}"] = phase_shift_deg
-            result[f"time_shift_ms{i}"] = time_shift_ms
-
-        return result
-
-    '''
-    Diese Funktion berechnet die hinlaufende und rücklaufende Welle (A und B) basierend auf den komplexen Amplituden
-    der drei Mikrofone
-    '''
     def compute_forward_reflected_results(self, m, f0):
-        cfg = self._get_wave_config()
-        freqs = np.array([f0], dtype=float)
-
-        A, B, residual = estimate_forward_reflected_three_mics_ls(
-            np.array([m["P1"]], dtype=complex),
-            np.array([m["P2"]], dtype=complex),
-            np.array([m["P3"]], dtype=complex),
-            freqs,
-            cfg,
-        )
-
-        A0 = A[0]
-        B0 = B[0]
-
-        B_over_A = np.abs(B0) / (np.abs(A0) + 1e-12)
-
-
-        R = B_over_A**2
-        D = 1.0 - R
-        D_percent = D * 100.0
-
-        return {
-            "A": A0,
-            "A_abs": np.abs(A0),
-            "A_phase": np.angle(A0),
-            "B": B0,
-            "B_abs": np.abs(B0),
-            "B_phase": np.angle(B0),
-            "B_over_A": B_over_A,
-            "reflection_energy": R,
-            "dissipation": D,
-            "dissipation_percent": D_percent,
-            "residual": residual[0],
-        }
+        return sp_compute_forward_reflected_results(m, f0, self._get_wave_config())
 
     '''
     Die MainWindow-Klasse ist das zentrale Element der Benutzeroberfläche. Sie verwaltet die verschiedenen Bildschirme
@@ -2017,3 +1656,4 @@ def main():
 # Der Einstiegspunkt der Anwendung, der die MainWindow-Klasse erstellt und die Qt-Anwendung startet.
 if __name__ == "__main__":
     main()
+
