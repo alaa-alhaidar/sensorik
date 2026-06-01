@@ -51,6 +51,7 @@ from generator_hdw_panel import TektronixAFG320
 from signal_process import (
     build_wave_config,
     process_recorded_signal,
+    record_signal,
     measure_at_frequency_by_f0 as sp_measure_at_frequency_by_f0,
     measure_three_mics_at_frequency_by_f0 as sp_measure_three_mics_at_frequency_by_f0,
     compute_fft_from_signal as sp_compute_fft_from_signal,
@@ -58,6 +59,7 @@ from signal_process import (
     build_mic_result_dict as sp_build_mic_result_dict,
     format_microphone_logs,
     format_wave_logs,
+    
 )
 
 # Feste Parameter für die automatische Messung
@@ -214,7 +216,7 @@ class LogDialog(QDialog):
 Die Klasse ComplexResultsDialog ist ein Dialogfenster, das die komplexen Schalldruck-Amplituden der drei Mikrofone anzeigt.
 Für jedes Mikrofon gibt es einen eigenen Plot, der den Real- und Imaginärteil der Amplitude als Punkt in der komplexen Ebene darstellt.
 Zusätzlich werden unter jedem Plot detaillierte Informationen zum Spektrum bei der Messfrequenz, Real- und Imaginärteil, Betrag, Phase, RMS-Wert,
-Phasenverschiebung und Zeitverschiebung angezeigt. Es gibt auch einen "Zurück"-Button, um das Dialogfenster zu schließen.
+Phasenverschiebung und Zeitverschiebung angezeigt.
 '''
 class ComplexResultsDialog(QDialog):
     def __init__(self, mic_results, parent=None):
@@ -1227,13 +1229,12 @@ class SignalAnalysisScreen(QWidget):
                 self.focusrite.stop_input_stream()
                 self.focusrite = None
 
-            if self._using_simulation():
-                raw_signal = self._generate_simulated_signal(duration)
-                print(f"Simulierte Signale: signal.shape={raw_signal.shape}, signal.dtype={raw_signal.dtype}")
-            else:
-                self.focusrite = self._create_focusrite()
-                raw_signal = self.focusrite.record_input(duration=duration)
-                print(f"Aufnahme von Fokusrite: signal.shape={raw_signal.shape}, signal.dtype={raw_signal.dtype}")
+            raw_signal, self.focusrite = record_signal(
+                duration=duration,
+                using_simulation=self._using_simulation(),
+                generate_simulated_signal=self._generate_simulated_signal,
+                create_focusrite=self._create_focusrite,
+            )
 
             f0 = self._get_f0()
             sample_rate = self._get_sample_rate()
@@ -1280,21 +1281,6 @@ class SignalAnalysisScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "FFT-Fehler", str(e))
             return None
-
-    def measure_at_frequency_by_f0(self, signal, f0, channel_index=None):
-        return sp_measure_at_frequency_by_f0(
-            signal_1d=signal,
-            f0=f0,
-            sample_rate=self._get_sample_rate(),
-        )
-
-    def measure_three_mics_at_frequency_by_f0(self, signal, f0):
-        return sp_measure_three_mics_at_frequency_by_f0(
-            signal=signal,
-            f0=f0,
-            sample_rate=self._get_sample_rate(),
-            num_channels=self.num_channels,
-        )
 
     def open_time_window(self, ch):
         if ch < 0 or ch >= self.num_channels:

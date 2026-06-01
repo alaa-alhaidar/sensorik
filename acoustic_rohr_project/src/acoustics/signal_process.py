@@ -19,6 +19,32 @@ import numpy as np
 
 from estimation import estimate_forward_reflected_three_mics_ls
 
+import numpy as np
+
+
+def record_signal(
+    duration,
+    using_simulation,
+    generate_simulated_signal,
+    create_focusrite,
+):
+    if using_simulation:
+        raw_signal = generate_simulated_signal(duration)
+        print(
+            f"Simulierte Signale: signal.shape={raw_signal.shape}, "
+            f"signal.dtype={raw_signal.dtype}"
+        )
+        return np.asarray(raw_signal, dtype=np.float32), None
+
+    focusrite = create_focusrite()
+    raw_signal = focusrite.record_input(duration=duration)
+    print(
+        f"Aufnahme von Focusrite: signal.shape={raw_signal.shape}, "
+        f"signal.dtype={raw_signal.dtype}"
+    )
+   
+    return np.asarray(raw_signal, dtype=np.float32), focusrite
+
 
 def prepare_recording_signal(
     signal: np.ndarray,
