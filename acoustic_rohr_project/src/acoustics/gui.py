@@ -4,16 +4,14 @@ import time
 from types import SimpleNamespace
 import sounddevice as sd
 
-CURRENT_DIR = Path(__file__).resolve().parent
-if str(CURRENT_DIR) not in sys.path:
-    sys.path.insert(0, str(CURRENT_DIR))
+
 
 import numpy as np
 import pyqtgraph as pg
 
 from automation import (
-    update_voltage_from_amplitude,
-    amplitude_reached_target,
+    run_auto_measurement_steps,
+    run_frequency_sweep_steps,
 )
 
 from estimation import (
@@ -59,6 +57,7 @@ from signal_process import (
     build_mic_result_dict as sp_build_mic_result_dict,
     format_microphone_logs,
     format_wave_logs,
+    prepare_recording_signal,
     
 )
 
@@ -105,11 +104,11 @@ D = 0.64 → 64 % Energieverlust, 36 % Reflexion
 '''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
-# bei 1000 Hz: 6.666 µV bei 0.2 V Generator-Spannung
+# bei 1000 Hz: 6.4 µV bei 0.2 V Generator-Spannung, BeI 2000 hZ und 500 hZ ist auch ungefähr 6.4 µV
 CALIBRATION = {
-    1: 6.666,
-    2: 6.666,
-    3: 6.666,
+    1: 6.4,
+    2: 6.4,
+    3: 6.4,
 }
 
 # format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
@@ -142,7 +141,7 @@ class SignalPlotDialog(QDialog):
         self.plot_widget = pg.PlotWidget(title=title)
         self.plot_widget.setLabel("bottom", xlabel)
         self.plot_widget.setLabel("left", ylabel)
-        self.plot_widget.setMouseEnabled(x=False, y=True)
+        self.plot_widget.setMouseEnabled(x=True, y=False)
         self.plot_widget.showGrid(x=True, y=True)
         self.plot_widget.plot(x, y, pen="y")
         self.plot_widget.enableAutoRange(False)  # Automatischer Zoom, damit die Daten gut sichtbar sind
@@ -554,6 +553,8 @@ Die Klasse SignalAnalysisScreen ist die Hauptbenutzeroberfläche für die Signal
 class SignalAnalysisScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+      
+        
         self.current_f0 = DEFAULT_MEASUREMENT_F0
         self.focusrite = None
         self.devices = []
@@ -582,10 +583,11 @@ class SignalAnalysisScreen(QWidget):
         self.last_recording = None
         self.last_chunk = None
         self.last_mode = None
-        self.get_generator = None
+        self.get_f0_from_gui = None
 
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_time_plot)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_live_plot)
 
         self._build_ui()
         self._connect_signals()
@@ -609,7 +611,7 @@ class SignalAnalysisScreen(QWidget):
 
         self.source_combo = QComboBox()
         self.source_combo.addItems([SOURCE_SIMULATION, SOURCE_SCARLETT])
-        self.source_combo.setCurrentText(SOURCE_SIMULATION)
+        self.source_combo.setCurrentText(SOURCE_SCARLETT)
 
         self.sample_rate_combo = QComboBox()
         self.sample_rate_combo.addItems(["44100", "48000", "88200", "96000"])
@@ -646,7 +648,10 @@ class SignalAnalysisScreen(QWidget):
         row1.addWidget(self.device_combo)
 
         row1.addWidget(self.refresh_focusrite_button)
+     
 
+        self.f0_detected_label = QLabel("gefunden: - Hz")
+        row1.addWidget(self.f0_detected_label)
 
         row1.addStretch()
 
@@ -721,7 +726,7 @@ class SignalAnalysisScreen(QWidget):
         self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
         self.audio_start_button.clicked.connect(self.start_audio)
         self.audio_stop_button.clicked.connect(self.stop_audio)
-        self.record_button.clicked.connect(lambda: self.record_for_time(self._get_measurement_duration()))
+        self.record_button.clicked.connect(self.on_record_clicked)
         self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
         self.show_log_button.clicked.connect(self.show_log_window)
         self.show_results_button.clicked.connect(self.show_results_window)
@@ -729,8 +734,11 @@ class SignalAnalysisScreen(QWidget):
 
 
 
-    def set_fft_xrange_around_f0(self):
-        f0 = self._get_f0()
+    def set_fft_xrange_around_f0(self, f0=None):
+        if f0 is None:
+            f0 = self._get_f0()
+
+        f0 = float(f0)
         sample_rate = self._get_sample_rate()
         nyquist = sample_rate / 2.0
 
@@ -957,13 +965,8 @@ class SignalAnalysisScreen(QWidget):
             return 48000.0
 
     def _get_f0(self):
-        if self.current_f0 is None:
-            raise ValueError("Keine aktuelle Messfrequenz gesetzt.")
+        return 0.0
 
-        if self.current_f0 <= 0:
-            raise ValueError("Messfrequenz muss größer als 0 Hz sein.")
-
-        return float(self.current_f0)
     
     # Simulation Signal
     def _generate_simulated_signal(self, duration=MEASUREMENT_DURATION):
@@ -1042,12 +1045,12 @@ class SignalAnalysisScreen(QWidget):
     def _refresh_fft_plots(self):
         if not self.fft_plot_curves:
             return
-        
+
         for ch in range(self.num_channels):
             self.fft_plot_curves[ch].setData(self.fft_freq_axis, self.fft_buffers[ch])
 
-        if len(self.fft_freq_axis) > 0:
-            self.set_fft_xrange_around_f0()
+        for plot in self.fft_plot_widgets:
+            plot.setXRange(50, 3000, padding=0)
 
     def refresh_time_axis_only(self):
         self.live_elapsed_samples = 0
@@ -1115,6 +1118,11 @@ class SignalAnalysisScreen(QWidget):
 
     def start_audio(self):
         try:
+            if self.get_generator is not None:
+                gen = self.get_generator()
+                if gen is not None and hasattr(gen, "frequency_hz"):
+                    self.current_f0 = float(gen.frequency_hz)
+
             self.timer.stop()
 
             if self.focusrite is not None:
@@ -1140,8 +1148,9 @@ class SignalAnalysisScreen(QWidget):
             self.focusrite = self._create_focusrite()
             used_device = self.focusrite.start_input_stream()
 
+            # Delay, live wirkt durch die Pufferung etwas verzögert,
             self.last_mode = "live"
-            self.timer.start(100)
+            self.timer.start(50) # alle 50 ms aktualisieren, also ca. 20 mal pro Sekunde.
 
             self.log(
                 f"Live-Stream gestartet: Gerät={used_device}, "
@@ -1203,6 +1212,50 @@ class SignalAnalysisScreen(QWidget):
                 0, display_samples / sample_rate, padding=0
             )
 
+    def update_live_plot(self):
+        if self.focusrite is None:
+            return
+
+        chunks = []
+
+        while not self.focusrite.audio_queue.empty():
+            kind, data = self.focusrite.audio_queue.get()
+
+            if kind == "audio":
+                chunks.append(data)
+            elif kind == "status":
+                self.log(data, category="Warnung")
+
+        if not chunks:
+            return
+
+        signal = np.vstack(chunks).astype(np.float32)
+
+        # wichtig: Kalibrierung auch bei Live
+        signal = prepare_recording_signal(
+            signal,
+            num_channels=self.num_channels,
+            calibration=CALIBRATION,
+        )
+
+        self.last_chunk = signal
+        self.last_mode = "live"
+
+        f0 = self._get_f0()
+
+        self.update_time_plot(signal, f0)
+
+        result = sp_compute_fft_from_signal(
+            signal=signal,
+            sample_rate=self._get_sample_rate(),
+            f0=f0,
+            num_channels=self.num_channels,
+        )
+
+        self.fft_freq_axis = result["freqs"]
+        self.fft_buffers = result["fft_buffers"]
+        self._refresh_fft_plots()
+            
     def _write_log_entries(self, entries):
         for text, category in entries:
             self.log(text, category=category)
@@ -1214,56 +1267,78 @@ class SignalAnalysisScreen(QWidget):
         wave = self.compute_forward_reflected_results(m, f0)
         self._write_log_entries(format_wave_logs(wave))
 
-    def record_for_time(self, duration=None):
+    def on_record_clicked(self):
         try:
-            if duration is None:
-                duration = MEASUREMENT_DURATION
-                self.log(f"Aufnahme gestartet: Dauer={duration:.3f} s")
+            duration = self._get_measurement_duration()
+            result = self.run_measurement(duration)
+            if result is None:
+                return
 
-            duration = float(duration)
-            if duration <= 0:
-                raise ValueError(f"Aufnahmedauer muss größer als 0 sein. duration={duration}")
-
-            self.timer.stop()
-            if self.focusrite is not None:
-                self.focusrite.stop_input_stream()
-                self.focusrite = None
-
-            raw_signal, self.focusrite = record_signal(
-                duration=duration,
-                using_simulation=self._using_simulation(),
-                generate_simulated_signal=self._generate_simulated_signal,
-                create_focusrite=self._create_focusrite,
-            )
-
-            f0 = self._get_f0()
-            sample_rate = self._get_sample_rate()
-            result = process_recorded_signal(
-                raw_signal=raw_signal,
-                duration=duration,
-                f0=f0,
-                sample_rate=sample_rate,
-                num_channels=self.num_channels,
-                calibration=CALIBRATION,
-                wave_cfg=self._get_wave_config(),
-            )
-
-            signal = result["signal"]
-            self.last_recording = signal
-            self.last_mode = "record"
-
-            self.update_time_plot(signal, f0)
-            self.fft_freq_axis = result["fft"]["freqs"]
-            self.fft_buffers = result["fft"]["fft_buffers"]
-            self._refresh_fft_plots()
-            self._write_log_entries(result["log_entries"])
-
-            self.results_dialog = ComplexResultsDialog(result["mic_results"], parent=self)
-            return result["m"]
+            self.show_measurement_result(result)
 
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
-            return None
+
+
+    def run_measurement(self, duration, f0=None):
+        self.timer.stop()
+
+        if f0 is not None:
+            self.current_f0 = float(f0)
+
+        if self.focusrite is not None:
+            self.focusrite.stop_input_stream()
+            self.focusrite = None
+
+        raw_signal, self.focusrite = record_signal(
+            duration=duration,
+            using_simulation=self._using_simulation(),
+            generate_simulated_signal=self._generate_simulated_signal,
+            create_focusrite=self._create_focusrite,
+        )
+
+        f0 = self._get_f0()
+        sample_rate = self._get_sample_rate()
+
+        result = process_recorded_signal(
+            raw_signal=raw_signal,
+            duration=duration,
+            f0=f0,
+            sample_rate=sample_rate,
+            num_channels=self.num_channels,
+            calibration=CALIBRATION,
+            wave_cfg=self._get_wave_config(),
+        )
+
+
+        self.last_recording = result["signal"]
+        self.last_mode = "record"
+
+        return result
+
+    def show_measurement_result(self, result):
+        f0 = result.get("f0", self._get_f0())
+
+        self.f0_detected_label.setText(f"gefunden: {float(f0):.2f} Hz")
+
+        # NICHT mehr ins Eingabefeld schreiben,
+        # sonst wird aus Auto-Modus wieder manueller Modus.
+        # self.f0_edit.setText(f"{float(f0):.2f}")
+
+        self.log(f"Automatisch bestimmte f0 = {float(f0):.2f} Hz")
+
+        self.update_time_plot(result["signal"], f0)
+
+        self.fft_freq_axis = result["fft"]["freqs"]
+        self.fft_buffers = result["fft"]["fft_buffers"]
+        self._refresh_fft_plots()
+
+        self._write_log_entries(result["log_entries"])
+
+        self.results_dialog = ComplexResultsDialog(
+            result["mic_results"],
+            parent=self,
+        )
 
     def compute_fft_from_signal(self, signal):
         try:
@@ -1353,6 +1428,7 @@ class MainWindow(QWidget):
         self.generator_screen = GeneratorScreen()
         self.signal_screen = SignalAnalysisScreen()
         self.signal_screen.get_generator = lambda: self.generator_screen.generator
+        self.signal_screen.get_f0_from_gui = lambda: float(self.generator_screen.freq_edit.text())
 
         self.generator_screen.freq_edit.textChanged.connect(
             self.update_f0_from_generator
@@ -1400,116 +1476,88 @@ class MainWindow(QWidget):
             self.stack.setCurrentWidget(self.signal_screen)
 
             duration = self.signal_screen._get_measurement_duration()
+            start_voltage = float(self.generator_screen.amp_edit.text())
 
             frequencies = np.arange(
                 SWEEP_START_FREQ,
                 SWEEP_STOP_FREQ + SWEEP_STEP_FREQ,
-                SWEEP_STEP_FREQ
+                SWEEP_STEP_FREQ,
             )
 
-            sweep_results = []
+            sweep_results = run_frequency_sweep_steps(
+                generator=generator,
+                frequencies=frequencies,
+                start_voltage=start_voltage,
+                target_amp=TARGET_AMP,
+                tolerance=AMP_TOLERANCE,
+                max_steps=MAX_AUTO_STEPS,
+                min_voltage=MIN_GENERATOR_VOLTAGE,
+                max_voltage=MAX_GENERATOR_VOLTAGE,
+                duration=duration,
+                measure_once=self.signal_screen.run_measurement,
+                compute_wave=self.signal_screen.compute_forward_reflected_results,
+            )
 
-            generator.set_sine()
-            generator.output_on()
-
-            for f0 in frequencies:
-                self.signal_screen.current_f0 = f0
-                generator.set_frequency(f0)
-
-                voltage = float(self.generator_screen.amp_edit.text())
+            for sweep_item in sweep_results:
+                f0 = sweep_item["frequency"]
 
                 self.signal_screen.log(
                     f"Frequenzschleife: f = {f0:.1f} Hz",
-                    category="title"
+                    category="title",
                 )
 
-                for step in range(1, MAX_AUTO_STEPS + 1):
-                    generator.set_output(f0, voltage)
-                    self.signal_screen.log(
-                        f"Schritt {step}: f = {f0:.1f} Hz, U = {voltage:.4f} V"
-                    )
-
-                    m = self.signal_screen.record_for_time(duration) # rückgabewert ist ein dict mit den komplexen Amplituden der drei Mikrofone, den Phasen und RMS-Werten
-                    if m is None:
-                        raise RuntimeError("Messung fehlgeschlagen.")
-
-                    wave = self.signal_screen.compute_forward_reflected_results(m, f0) # rückgabewert ist ein dict mit den berechneten Werten für die hinlaufende und rücklaufende Welle, dem Reflexionsgrad, der Dissipation und dem Residuum
-                    measured_A_abs = wave["A_abs"]
-
-                    ok, relative_error = amplitude_reached_target(
-                        measured_A_abs,
-                        TARGET_AMP,
-                        AMP_TOLERANCE,
+                for step_item in sweep_item["step_results"]:
+                    self.signal_screen.show_measurement_result(
+                        step_item["measurement_result"]
                     )
 
                     self.signal_screen.log(
-                        f"|A| = {measured_A_abs:.6e} V, "
+                        f"Schritt {step_item['step']}: "
+                        f"f = {f0:.1f} Hz, "
+                        f"U = {step_item['voltage']:.4f} V"
+                    )
+                    self.signal_screen.log(
+                        f"|A| = {step_item['measured_A_abs']:.6e} V, "
                         f"Ziel = {format_voltage(TARGET_AMP)}"
                     )
                     self.signal_screen.log(
-                        f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}"
-                    )
-                    self.signal_screen.log(
-                        f"Dissipation = {wave['dissipation_percent']:.3f} %"
+                        f"Dissipation = {step_item['wave']['dissipation_percent']:.3f} %"
                     )
 
                     QApplication.processEvents()
-                    time.sleep(0.0)
-                    QApplication.processEvents()
 
-                    if ok:
-                        self.signal_screen.log(
-                            f"Ziel bei {f0:.1f} Hz erreicht.",
-                            category="title"
-                        )
-                        break
-
-                    voltage = update_voltage_from_amplitude(
-                        voltage,
-                        TARGET_AMP,
-                        measured_A_abs,
-                        MIN_GENERATOR_VOLTAGE,
-                        MAX_GENERATOR_VOLTAGE,
-                    )
-
-                sweep_results.append({
-                    "frequency": f0,
-                    "voltage": voltage,
-                    "A_abs": wave["A_abs"],
-                    "B_abs": wave["B_abs"],
-                    "B_over_A": wave["B_over_A"],
-                    "reflection_energy": wave["reflection_energy"],
-                    "dissipation_percent": wave["dissipation_percent"],
-                    "residual": wave["residual"],
-                })
+                self.signal_screen.log(
+                    f"Frequenz {f0:.1f} Hz abgeschlossen.",
+                    category="title",
+                )
 
             self.signal_screen.sweep_results = sweep_results
 
             self.signal_screen.log(
                 "Frequenzschleife abgeschlossen.",
-                category="title"
+                category="title",
             )
 
         except Exception as e:
             QMessageBox.critical(self, "Sweep-Fehler", str(e))
-        
+            
     def update_f0_from_generator(self):
-        try:
-            f0 = float(self.generator_screen.freq_edit.text())
-            if f0 > 0:
-                self.signal_screen.current_f0 = f0
-        except ValueError:
-            pass
-
+                    try:
+                        f0 = float(self.generator_screen.freq_edit.text())
+                        if f0 > 0:
+                            self.signal_screen.current_f0 = f0
+                    except ValueError:
+                        pass
+            
     '''
-    Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
-    angepasst werden, um eine Zielamplitude der hinlaufenden Welle |A| zu erreichen. Die Funktion iteriert über mehrere Schritte, 
-    in denen die Generatorparameter aktualisiert und die Messungen durchgeführt werden. Die Ergebnisse der Messungen werden 
-    geloggt, und die Funktion bricht ab, wenn die Zielamplitude erreicht ist oder die maximale Generatorspannung überschritten wird.
-    '''
+        Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
+        angepasst werden, um eine Zielamplitude der hinlaufenden Welle |A| zu erreichen. Die Funktion iteriert über mehrere Schritte, 
+        in denen die Generatorparameter aktualisiert und die Messungen durchgeführt werden. Die Ergebnisse der Messungen werden 
+        geloggt, und die Funktion bricht ab, wenn die Zielamplitude erreicht ist oder die maximale Generatorspannung überschritten wird.
+    '''    
     def run_automatic_measurement(self):
         try:
-            generator = self.generator_screen.generator # Zugriff auf den Generator, der in der GeneratorScreen-Klasse verwaltet wird
+            generator = self.generator_screen.generator
 
             if generator is None:
                 QMessageBox.warning(
@@ -1527,94 +1575,76 @@ class MainWindow(QWidget):
 
             if voltage <= 0 or voltage > MAX_GENERATOR_VOLTAGE:
                 raise ValueError(
-                    "Generatorspannung muss größer 0 und maximal 1.0 V sein."
+                    f"Generatorspannung muss größer 0 und maximal {MAX_GENERATOR_VOLTAGE:.1f} V sein."
                 )
 
             self.signal_screen.current_f0 = f0
-            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)  # sonst SOURCE_SCARLETT
+            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)
             self.signal_screen.refresh_focusrite_devices()
-
             self.stack.setCurrentWidget(self.signal_screen)
 
-            generator.set_sine()
-            generator.output_on()
+            duration = self.signal_screen._get_measurement_duration()
 
-            step = 1
+            step_results = run_auto_measurement_steps(
+                generator=generator,
+                f0=f0,
+                start_voltage=voltage,
+                target_amp=TARGET_AMP,
+                tolerance=AMP_TOLERANCE,
+                max_steps=MAX_AUTO_STEPS,
+                min_voltage=MIN_GENERATOR_VOLTAGE,
+                max_voltage=MAX_GENERATOR_VOLTAGE,
+                duration=duration,
+                measure_once=self.signal_screen.run_measurement,
+                compute_wave=self.signal_screen.compute_forward_reflected_results,
+            )
 
-            while step <= MAX_AUTO_STEPS:
-                step_start = time.perf_counter()
+            for item in step_results:
+                step = item["step"]
+                wave = item["wave"]
+                measurement_result = item["measurement_result"]
+
+                self.signal_screen.show_measurement_result(measurement_result)
 
                 self.signal_screen.log(
-                    f"Automatik Schritt {step} gestartet", category="title"
+                    f"Automatik Schritt {step}",
+                    category="title",
                 )
-
-                generator.set_output(f0, voltage)
-
                 self.signal_screen.log(
-                    f"Generator: f = {f0:.2f} Hz, U = {voltage:.4f} V"
+                    f"Generator: f = {item['frequency']:.2f} Hz, U = {item['voltage']:.4f} V"
+                )
+                self.signal_screen.log(
+                    f"Ziel-Amplitude |A| = {format_voltage(TARGET_AMP)}"
+                )
+                self.signal_screen.log(
+                    f"Gemessene hinlaufende Welle |A| = {format_voltage(item['measured_A_abs'])}"
+                )
+                self.signal_screen.log(
+                    f"Relativer Fehler = {item['relative_error']:.3f}"
+                )
+                self.signal_screen.log(
+                    f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}"
+                )
+                self.signal_screen.log(
+                    f"Reflexionsgrad R = {wave['reflection_energy']:.6f}"
+                )
+                self.signal_screen.log(
+                    f"Dissipation = {wave['dissipation_percent']:.3f} %"
                 )
 
-                duration = self.signal_screen._get_measurement_duration()
-                m = self.signal_screen.record_for_time(duration)
-                
                 QApplication.processEvents()
-                time.sleep(AUTO_STEP_PAUSE_SECONDS)
-                QApplication.processEvents()
-                
 
-                if m is None:
-                    raise RuntimeError("Messung fehlgeschlagen.")
-
-                wave = self.signal_screen.compute_forward_reflected_results(m, f0)
-                measured_A_abs = wave["A_abs"]
-
-                ok, relative_error = amplitude_reached_target(
-                    measured_A_abs,
-                    TARGET_AMP,
-                    AMP_TOLERANCE,
-                )
-
-                self.signal_screen.log(
-                    f"Automatik Schritt {step} Ergebnisse", category="title"
-                )
-                self.signal_screen.log(
-                    f"Ziel-Amplitude |A| = {format_voltage(TARGET_AMP)}, "
-                    f"bei Generator-Spannung {format_voltage(voltage)}"
-                )
-                self.signal_screen.log(
-                    f"Gemessene hinlaufende Welle |A| = {format_voltage(measured_A_abs)}"
-                )
-                self.signal_screen.log(f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}")
-                self.signal_screen.log(f"Relativer Fehler = {relative_error:.3f}")
-                self.signal_screen.log(f"Reflexionsgrad R = {wave['reflection_energy']:.6f}")
-                self.signal_screen.log(f"Dissipation = {wave['dissipation_percent']:.3f} %")
-
-                if ok:
+                if item["ok"]:
                     self.signal_screen.log(
-                        "Ziel-Amplitude |A| erreicht.", category="title"
-                    )
-                    break
-                if voltage >= MAX_GENERATOR_VOLTAGE:
-                    self.signal_screen.log(
-                        "Maximale Generator-Spannung erreicht. Ziel-Amplitude |A| nicht erreichbar.",
+                        "Ziel-Amplitude |A| erreicht.",
                         category="title",
                     )
-                    break
 
-                voltage = update_voltage_from_amplitude(
-                    voltage,
-                    TARGET_AMP,
-                    measured_A_abs,
-                    MIN_GENERATOR_VOLTAGE,
-                    MAX_GENERATOR_VOLTAGE,
+            if not step_results[-1]["ok"]:
+                self.signal_screen.log(
+                    "Ziel-Amplitude |A| nicht erreicht.",
+                    category="title",
                 )
-
-                self.signal_screen.log(f"Neue Generator-Spannung = {voltage:.4f} V")
-
-                step += 1
-
-            # self.signal_screen.record_for_time()
-            # generator.output_off()
 
         except Exception as e:
             try:

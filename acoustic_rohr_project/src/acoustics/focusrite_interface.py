@@ -63,6 +63,7 @@ class FocusriteInterface:
             duration = 1.0
         duration = float(duration)
         device_to_use = self._get_device()
+        print(f"Starte Aufnahme: Dauer={duration} Sekunden, Gerät={device_to_use}, ")
         num_samples = int(round(self.sample_rate * duration))
 
         audio = sd.rec(

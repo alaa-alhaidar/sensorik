@@ -7,7 +7,7 @@ def wave_number(freq_hz: np.ndarray, c: float) -> np.ndarray:
     return 2.0 * np.pi * freq_hz / c
 
 def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
-    # Berechnet die Wellenzahl k(f) für alle Frequenzen
+    # k: Wie stark ändert sich die Phase pro Meter (k = Phasenänderung pro Meter) rad/m
     k = wave_number(freqs_hz, cfg.c)
     # speichert die geschätzten A- und B-Werte für alle Frequenzen
     A_est = np.zeros_like(P1, dtype=complex)

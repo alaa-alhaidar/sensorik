@@ -21,7 +21,7 @@ from estimation import estimate_forward_reflected_three_mics_ls
 
 import numpy as np
 
-
+# hEre wird das Zreit-Signal von einem Mikrofon in die komplexe Amplitude bei einer Frequenz f0 umgerechnet
 def record_signal(
     duration,
     using_simulation,
@@ -45,7 +45,7 @@ def record_signal(
    
     return np.asarray(raw_signal, dtype=np.float32), focusrite
 
-
+# Formatierung des Signal und Sicherstellen dass sie die richtige Anzahl von Kanälen hat, sowie Kalibrierung anwenden
 def prepare_recording_signal(
     signal: np.ndarray,
     num_channels: int,
@@ -78,9 +78,25 @@ def prepare_recording_signal(
         for ch in range(num_channels):
             signal[:, ch] *= float(calibration.get(ch + 1, 1.0))
 
+
+
     return signal
 
 
+def estimate_f0_from_fft(signal, sample_rate):
+    x = signal[:, 0]
+    n = len(x)
+
+    freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate)
+    spectrum = np.abs(np.fft.rfft(x))
+
+    mask = (freqs >= 100) & (freqs <= 2000)
+    idx = np.argmax(spectrum[mask])
+
+    return freqs[mask][idx]
+
+
+# Einfaches Print für Prüfung Zeitsignal
 def debug_signal_print(signal: np.ndarray, prefix: str = "Aufgenommenes Signal") -> None:
     """Kompakte Debug-Ausgabe für die Konsole."""
     print(f"{prefix}: signal.shape={signal.shape}, signal.dtype={signal.dtype}")
@@ -92,14 +108,14 @@ def debug_signal_print(signal: np.ndarray, prefix: str = "Aufgenommenes Signal")
     for ch in range(signal.shape[1]):
         print(f"Reelle Werte Mikrofon {ch + 1}: {signal[:5, ch]}")
 
-# measure_at_frequency_by_f0 nimmt ein Zeit-Signal von einem Mikrofon und berechnet nur den Anteil bei einer bestimmten Frequenz f0 
+# Diese Funktion macht aus einem Zeit-Signal von einem Mikrofon die komplexe Amplitude bei genau einer Frequenz f0
 def measure_at_frequency_by_f0(
     signal_1d: np.ndarray,
     f0: float,
     sample_rate: float,
 ) -> tuple[complex, float, float, float]:
     """Berechnet komplexe Amplitude P, Betrag, Phase und RMS bei f0."""
-    x = np.asarray(signal_1d, dtype=np.float64).flatten()
+    x = np.asarray(signal_1d, dtype=np.float64).flatten() # flatten() macht daraus einen eindimensionalen Vektor
 
     if x.size == 0:
         raise ValueError("Leeres Signal.")
@@ -357,6 +373,10 @@ def process_recorded_signal(
 ) -> dict[str, Any]:
     """Komplette Auswertung einer Aufnahme, aber ohne GUI und ohne Aufnahme-Hardware."""
     signal = prepare_recording_signal(raw_signal, num_channels, calibration)
+
+    if f0 is None or f0 <= 0:
+        f0 = estimate_f0_from_fft(signal, sample_rate)
+
     debug_signal_print(signal)
 
     m = measure_three_mics_at_frequency_by_f0(signal, f0, sample_rate, num_channels)
@@ -372,6 +392,7 @@ def process_recorded_signal(
 
     return {
         "signal": signal,
+        "f0": f0,
         "m": m,
         "wave": wave,
         "fft": fft,
