@@ -90,8 +90,9 @@ def estimate_f0_from_fft(signal, sample_rate):
     freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate)
     spectrum = np.abs(np.fft.rfft(x))
 
-    mask = (freqs >= 100) & (freqs <= 2000)
+    mask = (freqs >= 150) & (freqs <= 2000)
     idx = np.argmax(spectrum[mask])
+    print(f"freqs = {freqs[mask][idx]:.2f} Hz, Spektrum={spectrum[mask][idx]:.6e}")
 
     return freqs[mask][idx]
 
@@ -108,12 +109,10 @@ def debug_signal_print(signal: np.ndarray, prefix: str = "Aufgenommenes Signal")
     for ch in range(signal.shape[1]):
         print(f"Reelle Werte Mikrofon {ch + 1}: {signal[:5, ch]}")
 
-# Diese Funktion macht aus einem Zeit-Signal von einem Mikrofon die komplexe Amplitude bei genau einer Frequenz f0
+# Erzeugen von komplexen Amplituden P1, P2, P3 für die drei Mikrofone bei der Frequenz f0, sowie Betrag, Phase und RMS-Wert
 def measure_at_frequency_by_f0(
-    signal_1d: np.ndarray,
-    f0: float,
-    sample_rate: float,
-) -> tuple[complex, float, float, float]:
+        signal_1d: np.ndarray, f0: float, sample_rate: float,) -> tuple[complex, float, float, float]:
+
     """Berechnet komplexe Amplitude P, Betrag, Phase und RMS bei f0."""
     x = np.asarray(signal_1d, dtype=np.float64).flatten() # flatten() macht daraus einen eindimensionalen Vektor
 
@@ -138,13 +137,10 @@ def measure_at_frequency_by_f0(
 
     return P, amplitude, phase, rms
 
-
+# für alle drei ruft measure_at_frequency_by_f0 auf und speichert die Ergebnisse in einem Dictionary
 def measure_three_mics_at_frequency_by_f0(
-    signal: np.ndarray,
-    f0: float,
-    sample_rate: float,
-    num_channels: int = 3,
-) -> dict[str, Any]:
+    signal: np.ndarray, f0: float, sample_rate: float, num_channels: int = 3,) -> dict[str, Any]:
+
     """Berechnet P, Betrag, Phase und RMS für drei Mikrofone."""
     signal = prepare_recording_signal(signal, num_channels=num_channels)
 
@@ -192,7 +188,12 @@ def compute_fft_from_signal(
         x = signal[:, ch]
         spectrum = np.fft.rfft(x * window)
         amp = 2.0 * np.abs(spectrum) / window_norm
-        fft_buffers.append(amp.astype(np.float32))
+
+        # FFT-Betrag als dBµV anzeigen
+        amp_rms = amp / np.sqrt(2.0)
+        amp_dbuv = 20.0 * np.log10((amp_rms + 1e-30) / 1e-6)
+
+        fft_buffers.append(amp_dbuv.astype(np.float32))
         log_entries.append(
             (
                 f"Mikrofon {ch + 1},FFT-Amplitude bei "
@@ -220,10 +221,8 @@ def build_wave_config(c: float, x1: float, x2: float, x3: float) -> SimpleNamesp
 
 # Berechnet hinlaufende Welle A, rücklaufende Welle B, Reflexionsfaktor r = B/A, Reflexionsgrad R = |r|², Dissipation D = 1 - R
 def compute_forward_reflected_results(
-    m: dict[str, Any],
-    f0: float,
-    cfg: SimpleNamespace,
-) -> dict[str, Any]:
+    m: dict[str, Any], f0: float, cfg: SimpleNamespace,) -> dict[str, Any]:
+    
     """Berechnet A, B, Reflexionsgrad und Dissipation aus P1, P2, P3."""
     freqs = np.array([f0], dtype=float)
 

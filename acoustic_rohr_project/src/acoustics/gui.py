@@ -94,9 +94,11 @@ FFT_VIEW_HALF_WIDTH = 200
 
 # Feste Rohr-/Mikrofonparameter
 SPEED_OF_SOUND = 344.0
-MIC_X1 = -0.050
+
+# Rehung ist X1 am weitesten von Abschluss entfernt, X3 am nächsten
+MIC_X1 = -0.145
 MIC_X2 = -0.085
-MIC_X3 = -0.145
+MIC_X3 = -0.05
 
 '''
 D = 0   → harte Wand, volle Reflexion
@@ -332,6 +334,179 @@ class ComplexResultsDialog(QDialog):
         layout.addLayout(mic_row)
         self.setLayout(layout)
 
+
+class WaveDecompositionDialog(QDialog):
+    def __init__(self, wave, f0, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Wellenzerlegung")
+        self.resize(1200, 900)
+
+        layout = QVBoxLayout()
+
+        back_button = QPushButton("← Zurück")
+        back_button.setMaximumWidth(220)
+        back_button.clicked.connect(self.close)
+        layout.addWidget(back_button)
+
+        title = QLabel(f"Wellenzerlegung bei f0 = {float(f0):.2f} Hz")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: blue;")
+        layout.addWidget(title)
+
+        # -------------------------------------------------
+        # Grunddaten
+        # -------------------------------------------------
+        A_abs = wave["A_abs"]
+        A_phase = wave["A_phase"]
+
+        B_abs = wave["B_abs"]
+        B_phase = wave["B_phase"]
+
+        f0 = float(f0)
+        k = 2.0 * np.pi * f0 / SPEED_OF_SOUND
+        lam = SPEED_OF_SOUND / f0
+
+        # Plot beginnt links vor M3 und geht rechts ca. 2 Wellenlängen weiter
+        x_min = min(MIC_X1, MIC_X2, MIC_X3) - 0.03
+        x_max = max(MIC_X1, MIC_X2, MIC_X3) + 2.0 * lam
+
+        # x in Meter für Rechnung
+        x = np.linspace(x_min, x_max, 2000)
+
+        # x in mm für Anzeige
+        x_mm = x * 1000.0
+        x_min_mm = x_min * 1000.0
+        x_max_mm = x_max * 1000.0
+
+        # Sinusförmige Ortsverläufe bei t = 0
+        a_x = A_abs * np.cos(-k * x + A_phase)   # hinlaufende Welle
+        b_x = B_abs * np.cos(+k * x + B_phase)   # rücklaufende Welle
+        p_x = a_x + b_x                          # Gesamtsignal
+
+        # Darstellung in µV
+        a_uv = a_x * 1e6
+        b_uv = b_x * 1e6
+        p_uv = p_x * 1e6
+
+        # -------------------------------------------------
+        # Box 1: Wellen im Rohr
+        # -------------------------------------------------
+        wave_box = QGroupBox("Hinlaufende und rücklaufende Welle im Rohr")
+        wave_layout = QVBoxLayout()
+
+        wave_plot = pg.PlotWidget(title="Wellenzerlegung im Ortsbereich")
+        wave_plot.setLabel("bottom", "Rohrposition x [mm]")
+        wave_plot.setLabel("left", "Amplitude [µV]")
+        wave_plot.getAxis("bottom").enableAutoSIPrefix(False)
+        wave_plot.getAxis("left").enableAutoSIPrefix(False)
+        wave_plot.setMouseEnabled(x=True, y=False)
+        wave_plot.showGrid(x=True, y=True)
+        wave_plot.addLegend()
+
+        wave_plot.plot(
+            x_mm,
+            a_uv,
+            pen=pg.mkPen("c", width=2),
+            name="a(x) hinlaufend"
+        )
+
+        wave_plot.plot(
+            x_mm,
+            b_uv,
+            pen=pg.mkPen("m", width=2),
+            name="b(x) rücklaufend"
+        )
+
+        wave_plot.plot(
+            x_mm,
+            p_uv,
+            pen=pg.mkPen("y", width=2),
+            name="p(x) = a(x) + b(x)"
+        )
+
+        wave_plot.setXRange(x_min_mm, x_max_mm, padding=0)
+
+        # Mikrofonpositionen markieren
+        y_values = np.concatenate([a_uv, b_uv, p_uv])
+        y_top = float(np.max(y_values))
+        y_bottom = float(np.min(y_values))
+        y_span = max(abs(y_top - y_bottom), 1.0)
+
+        mic_marks = [
+            (MIC_X1, "M1", 0.85),
+            (MIC_X2, "M2", 0.70),
+            (MIC_X3, "M3", 0.55),
+        ]
+
+        for mic_x, name, frac in mic_marks:
+            mic_x_mm = mic_x * 1000.0
+
+            line = pg.InfiniteLine(pos=mic_x_mm, angle=90, movable=False)
+            wave_plot.addItem(line)
+
+            text = pg.TextItem(name)
+            text.setPos(mic_x_mm, y_bottom + frac * y_span)
+            wave_plot.addItem(text)
+
+        wave_layout.addWidget(wave_plot)
+        wave_box.setLayout(wave_layout)
+
+        # -------------------------------------------------
+        # Box 2: RMS-Pegel in dBµV
+        # -------------------------------------------------
+        db_box = QGroupBox("RMS-Pegel der hin- und rücklaufenden Welle")
+        db_layout = QVBoxLayout()
+
+        db_plot = pg.PlotWidget(title="RMS-Pegel in dBµV")
+        db_plot.setLabel("bottom", "Rohrposition x [mm]")
+        db_plot.setLabel("left", "Pegel [dBµV]")
+        db_plot.getAxis("bottom").enableAutoSIPrefix(False)
+        db_plot.getAxis("left").enableAutoSIPrefix(False)
+        db_plot.setMouseEnabled(x=True, y=False)
+        db_plot.showGrid(x=True, y=True)
+        db_plot.addLegend()
+
+        eps = 1e-30
+        u_ref = 1e-6  # dBµV
+
+        # RMS = Spitzenwert / √2
+        # A_RMS = |A| / √2
+        # B_RMS = |B| / √2
+        A_rms = A_abs / np.sqrt(2.0) # RMS-Wert der hinlaufenden Welle
+        B_rms = B_abs / np.sqrt(2.0) # RMS-Wert der rücklaufenden Welle
+
+        A_dbuv = 20.0 * np.log10((A_rms + eps) / u_ref) # Math 20 * log10(U / U_ref)
+        B_dbuv = 20.0 * np.log10((B_rms + eps) / u_ref)
+
+        A_db_line = np.ones_like(x_mm) * A_dbuv
+        B_db_line = np.ones_like(x_mm) * B_dbuv
+
+        db_plot.plot(
+            x_mm,
+            A_db_line,
+            pen=pg.mkPen("c", width=3),
+            name=f"A_RMS = {A_dbuv:.2f} dBµV"
+        )
+
+        db_plot.plot(
+            x_mm,
+            B_db_line,
+            pen=pg.mkPen("m", width=3),
+            name=f"B_RMS = {B_dbuv:.2f} dBµV"
+        )
+
+        db_plot.setXRange(x_min_mm, x_max_mm, padding=0)
+
+        db_layout.addWidget(db_plot)
+        db_box.setLayout(db_layout)
+
+        # -------------------------------------------------
+        # Beide Boxen anzeigen
+        # -------------------------------------------------
+        layout.addWidget(wave_box)
+        layout.addWidget(db_box)
+
+        self.setLayout(layout)
+
 '''
 Die Klasse StartScreen ist das Hauptmenü der Anwendung, das drei große Buttons für die verschiedenen Funktionen bietet: "Automatische Messung",
 "Signalgenerator" und "Signalanalyse".
@@ -562,6 +737,8 @@ class SignalAnalysisScreen(QWidget):
         self.num_channels = NUM_CHANNELS
         self.window_seconds = WINDOW_SECONDS
         self.live_elapsed_samples = 0
+        self.wave_dialog = None
+        self.last_result = None
 
         self.plot_buffers = (
             []
@@ -604,6 +781,7 @@ class SignalAnalysisScreen(QWidget):
         self.back_button.setMaximumWidth(220)
         top_layout.addWidget(self.back_button)
         top_layout.addStretch()
+        self.show_wave_button = QPushButton("Wellenzerlegung")
 
         group = QGroupBox("Signalquelle und Eingang")
         group_layout = QVBoxLayout()
@@ -648,8 +826,9 @@ class SignalAnalysisScreen(QWidget):
         row1.addWidget(self.device_combo)
      
 
-        self.f0_detected_label = QLabel("Gefundene Freq. bei FFT: - Hz")
+        self.f0_detected_label = QLabel("Freq. bei FFT: - Hz")
         row1.addWidget(self.f0_detected_label)
+        self.f0_detected_label.setStyleSheet("font-size: 20px; font-weight: bold; color: blue;")
 
         row1.addStretch()
 
@@ -672,6 +851,7 @@ class SignalAnalysisScreen(QWidget):
         row3.addWidget(self.auto_start_button)
         row3.addWidget(self.sweep_button)
         row3.addWidget(self.show_sweep_plot_button)
+        row3.addWidget(self.show_wave_button)
         
 
         group_layout.addLayout(row1)
@@ -696,7 +876,7 @@ class SignalAnalysisScreen(QWidget):
 
             fft_plot = pg.PlotWidget(title=f"FFT Betrag - Mikrofon {ch + 1}")
             fft_plot.setLabel("bottom", "Frequenz [Hz]")
-            fft_plot.setLabel("left", "|FFT|")
+            fft_plot.setLabel("left", "|FFT| [dBµV]")
             fft_plot.getAxis("left").enableAutoSIPrefix(False)
             fft_plot.showGrid(x=True, y=True)
             fft_plot.setMouseEnabled(x=True, y=False)
@@ -727,8 +907,29 @@ class SignalAnalysisScreen(QWidget):
         self.show_log_button.clicked.connect(self.show_log_window)
         self.show_results_button.clicked.connect(self.show_results_window)
         self.measurement_duration_edit.editingFinished.connect(self.refresh_time_axis_only)
+        self.show_wave_button.clicked.connect(self.show_wave_window)
 
 
+    def show_wave_window(self):
+        if self.last_result is None:
+            QMessageBox.information(
+                self,
+                "Keine Ergebnisse",
+                "Bitte zuerst eine Aufnahme durchführen."
+            )
+            return
+
+        wave = self.last_result["wave"]
+        f0 = self.last_result["f0"]
+
+        self.wave_dialog = WaveDecompositionDialog(
+            wave=wave,
+            f0=f0,
+            parent=self,
+        )
+        self.wave_dialog.show()
+        self.wave_dialog.raise_()
+        self.wave_dialog.activateWindow()
 
     def set_fft_xrange_around_f0(self, f0=None):
         if f0 is None:
@@ -1144,9 +1345,9 @@ class SignalAnalysisScreen(QWidget):
             self.focusrite = self._create_focusrite()
             used_device = self.focusrite.start_input_stream()
 
-            # Delay, live wirkt durch die Pufferung etwas verzögert,
+            # delay, live wirkt durch die Pufferung etwas verzögert,
             self.last_mode = "live"
-            self.timer.start(50) # alle 50 ms aktualisieren, also ca. 20 mal pro Sekunde.
+            self.timer.start(100) # bei 100 Bsp. alle 100 ms aktualisieren
 
             self.log(
                 f"Live-Stream gestartet: Gerät={used_device}, "
@@ -1183,7 +1384,7 @@ class SignalAnalysisScreen(QWidget):
         x = signal[:, 0]  # Mikrofon 1 als Referenz
 
         # Erste x ms überspringen, damit Start-Spitze weg ist
-        search_start = int(0.1 * sample_rate)
+        search_start = 0  #int(0.1 * sample_rate)
         search_start = min(search_start, max(0, num_samples - display_samples))
 
         start = search_start
@@ -1314,20 +1515,16 @@ class SignalAnalysisScreen(QWidget):
         return result
 
     def show_measurement_result(self, result):
-        f0 = result.get("f0", self._get_f0())
+        self.last_result = result
 
-        self.f0_detected_label.setText(f"Gefundene Freq. bei FFT: {float(f0):.2f} Hz")
+        f0 = result["f0"]
 
-        # NICHT mehr ins Eingabefeld schreiben,
-        # sonst wird aus Auto-Modus wieder manueller Modus.
-        # self.f0_edit.setText(f"{float(f0):.2f}")
-
-        self.log(f"Automatisch bestimmte f0 = {float(f0):.2f} Hz")
+        self.f0_detected_label.setText(f"f0: {float(f0):.2f} Hz")
 
         self.update_time_plot(result["signal"], f0)
 
         self.fft_freq_axis = result["fft"]["freqs"]
-        self.fft_buffers = result["fft"]["fft_buffers"]
+        self.fft_buffers = result["fft_buffers"] if "fft_buffers" in result else result["fft"]["fft_buffers"]
         self._refresh_fft_plots()
 
         self._write_log_entries(result["log_entries"])
@@ -1477,7 +1674,7 @@ class MainWindow(QWidget):
 
             frequencies = np.arange(
                 SWEEP_START_FREQ,
-                SWEEP_STOP_FREQ + SWEEP_STEP_FREQ,
+                SWEEP_STOP_FREQ,
                 SWEEP_STEP_FREQ,
             )
 
