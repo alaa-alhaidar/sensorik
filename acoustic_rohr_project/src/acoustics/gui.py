@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import time
 from types import SimpleNamespace
+import wave
 import sounddevice as sd
 
 
@@ -366,17 +367,18 @@ class WaveDecompositionDialog(QDialog):
         lam = SPEED_OF_SOUND / f0 # Wellenlänge in Meter
 
         # Plot beginnt links vor M3 und geht rechts ca. 2 Wellenlängen weiter
-        x_min = min(MIC_X1, MIC_X2, MIC_X3) - 0.00
-        x_max = max(MIC_X1, MIC_X2, MIC_X3) + 2.0 * lam
+        x_min = 0 - (SPEED_OF_SOUND / float(f0))
+        x_max = 0 #max(MIC_X1, MIC_X2, MIC_X3) + 2.0 * lam
 
         # x in Meter für Rechnung
-        x = np.linspace(x_min, x_max, 2000)
+        x = np.linspace(x_min, x_max, 1000)
 
         # x in mm für Anzeige
         x_mm = x * 1000.0
         x_min_mm = x_min * 1000.0
         x_max_mm = x_max * 1000.0
 
+        
         # Sinusförmige Ortsverläufe bei t = 0
         a_x = A_abs * np.cos(-k * x + A_phase)   # hinlaufende Welle
         b_x = B_abs * np.cos(+k * x + B_phase)   # rücklaufende Welle
@@ -386,6 +388,24 @@ class WaveDecompositionDialog(QDialog):
         a_uv = a_x * 1e6
         b_uv = b_x * 1e6
         p_uv = p_x * 1e6
+
+        
+
+        '''
+                # -------------------------------------------------
+        # Einzelwerte ohne Sinus-Ortsverlauf
+        # A und B sind komplexe Einzelwerte bei f0.
+        # Hier wird nur ihr Betrag als konstante Linie gezeigt.
+        # -------------------------------------------------
+        A_complex = wave["A"]
+        B_complex = wave["B"]
+        P_sum_complex = A_complex + B_complex
+
+        a_uv = np.ones_like(x_mm) * (np.abs(A_complex) * 1e6)
+        b_uv = np.ones_like(x_mm) * (np.abs(B_complex) * 1e6)
+        p_uv = np.ones_like(x_mm) * (np.abs(P_sum_complex) * 1e6)
+        '''
+
 
         # -------------------------------------------------
         # Box 1: Wellen im Rohr
@@ -398,7 +418,7 @@ class WaveDecompositionDialog(QDialog):
         wave_plot.setLabel("left", "Amplitude [µV]")
         wave_plot.getAxis("bottom").enableAutoSIPrefix(False)
         wave_plot.getAxis("left").enableAutoSIPrefix(False)
-        wave_plot.setMouseEnabled(x=True, y=False)
+        wave_plot.setMouseEnabled(x=True, y=True)
         wave_plot.showGrid(x=True, y=True)
         wave_plot.addLegend()
 
@@ -471,6 +491,7 @@ class WaveDecompositionDialog(QDialog):
         # RMS = Spitzenwert / √2
         # A_RMS = |A| / √2
         # B_RMS = |B| / √2
+
         A_rms = A_abs / np.sqrt(2.0) # RMS-Wert der hinlaufenden Welle
         B_rms = B_abs / np.sqrt(2.0) # RMS-Wert der rücklaufenden Welle
 
@@ -781,7 +802,7 @@ class SignalAnalysisScreen(QWidget):
         self.back_button.setMaximumWidth(220)
         top_layout.addWidget(self.back_button)
         top_layout.addStretch()
-        self.show_wave_button = QPushButton("Wellenzerlegung")
+        self.show_wave_button = QPushButton("📈 Wellenzerlegung")
 
         group = QGroupBox("Signalquelle und Eingang")
         group_layout = QVBoxLayout()
@@ -992,139 +1013,165 @@ class SignalAnalysisScreen(QWidget):
             )
             return
 
-        freqs = [item["frequency"] for item in self.sweep_results]
-        diss = [round(float(item["dissipation_percent"]), 7) for item in self.sweep_results]
-        voltages = [round(float(item["voltage"]), 8) for item in self.sweep_results]
+        freqs = []
+        reflection = []
+        transmission = []
+        dissipation = []
 
+        for item in self.sweep_results:
+            f = float(item["frequency"])
+            freqs.append(f)
+
+            # -----------------------------
+            # Reflexion R = |B/A|²
+            # -----------------------------
+            if "reflection_energy" in item:
+                R = float(item["reflection_energy"])
+            elif "r_abs" in item:
+                R = float(item["r_abs"]) ** 2
+            elif "B_over_A" in item:
+                R = float(item["B_over_A"]) ** 2
+            else:
+                R = 0.0
+
+            # Werte begrenzen
+            R = float(np.clip(R, 0.0, 1.0))
+
+            # -----------------------------
+            # Transmission T
+            # Falls du keine Transmission misst: T = 0
+            # -----------------------------
+            if "transmission_energy" in item:
+                T = float(item["transmission_energy"])
+            elif "transmission" in item:
+                T = float(item["transmission"])
+            elif "T" in item:
+                T = float(item["T"])
+            else:
+                T = 0.0
+
+            T = float(np.clip(T, 0.0, 1.0))
+
+            # -----------------------------
+            # Dissipation Δ = 1 - R - T
+            # -----------------------------
+            if "dissipation" in item:
+                D = float(item["dissipation"])
+            elif "dissipation_percent" in item:
+                D = float(item["dissipation_percent"]) / 100.0
+            else:
+                D = 1.0 - R - T
+
+            D = float(np.clip(D, 0.0, 1.0))
+
+            reflection.append(R)
+            transmission.append(T)
+            dissipation.append(D)
+
+        freqs = np.array(freqs, dtype=float)
+        reflection = np.array(reflection, dtype=float)
+        transmission = np.array(transmission, dtype=float)
+        dissipation = np.array(dissipation, dtype=float)
+
+        # -------------------------------------------------
+        # Dialog
+        # -------------------------------------------------
         dialog = QDialog(self)
-        dialog.setWindowTitle("Sweep-Ergebnisse")
-        dialog.resize(1000, 800)
+        dialog.setWindowTitle("Reflexion, Transmission und Dissipation")
+        dialog.resize(1200, 750)
 
         layout = QVBoxLayout()
 
-        # -------------------------------------------------
-        # Plot 1: Generatorspannung
-        # -------------------------------------------------
-        voltage_plot = pg.PlotWidget(title="Benötigte Generatorspannung über Frequenz")
-        voltage_plot.setLabel("bottom", "Frequenz [Hz]")
-        voltage_plot.setLabel("left", "Generatorspannung [V]")
-        voltage_plot.getAxis("left").enableAutoSIPrefix(False)
-        voltage_plot.getAxis("bottom").enableAutoSIPrefix(False)
-        voltage_plot.showGrid(x=True, y=True)
+        title = QLabel("Reflexion, Transmission und Dissipation über Frequenz")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: blue;")
+        layout.addWidget(title)
 
-        voltage_plot.plot(
+        plot = pg.PlotWidget(title="Reflexion, Transmission und Dissipation über Frequenz")
+        plot.setLabel("bottom", "Frequenz [Hz]")
+        plot.setLabel("left", "R, T, Δ")
+        plot.getAxis("bottom").enableAutoSIPrefix(False)
+        plot.getAxis("left").enableAutoSIPrefix(False)
+        plot.showGrid(x=True, y=True)
+        plot.addLegend()
+
+        # -------------------------------------------------
+        # Kurven wie im Beispiel
+        # -------------------------------------------------
+        plot.plot(
             freqs,
-            voltages,
-            pen=pg.mkPen(width=2),
+            reflection,
+            pen=pg.mkPen("b", width=2),
             symbol="o",
-            symbolSize=8
+            symbolSize=4,
+            symbolBrush="b",
+            name="R = |B/A|²"
         )
 
-        voltage_text = pg.TextItem("", anchor=(0, 1))
-        voltage_text.setZValue(100)
-        voltage_text.hide()
-        voltage_plot.addItem(voltage_text)
-
-        freqs_np = np.array(freqs, dtype=float)
-        voltages_np = np.array(voltages, dtype=float)
-
-        def on_voltage_mouse_moved(pos):
-            if not voltage_plot.sceneBoundingRect().contains(pos):
-                voltage_text.hide()
-                return
-
-            mouse_point = voltage_plot.plotItem.vb.mapSceneToView(pos)
-            x_mouse = mouse_point.x()
-
-            idx = int(np.argmin(np.abs(freqs_np - x_mouse)))
-
-            f_val = freqs_np[idx]
-            u_val = voltages_np[idx]
-
-            x_range = voltage_plot.viewRange()[0]
-            tolerance = (x_range[1] - x_range[0]) * 0.03
-
-            if abs(f_val - x_mouse) <= tolerance:
-                voltage_text.setText(
-                    f"f = {f_val:.1f} Hz\n"
-                    f"U = {u_val:.4f} V"
-                )
-                voltage_text.setPos(f_val, u_val)
-                voltage_text.show()
-            else:
-                voltage_text.hide()
-
-        voltage_proxy = pg.SignalProxy(
-            voltage_plot.scene().sigMouseMoved,
-            rateLimit=60,
-            slot=lambda evt: on_voltage_mouse_moved(evt[0])
-        )
-
-        # -------------------------------------------------
-        # Plot 2: Dissipation
-        # -------------------------------------------------
-        diss_plot = pg.PlotWidget(title="Dissipation über Frequenz")
-        diss_plot.setLabel("bottom", "Frequenz [Hz]")
-        diss_plot.setLabel("left", "Dissipation [%]")
-        diss_plot.getAxis("left").enableAutoSIPrefix(False)
-        diss_plot.getAxis("bottom").enableAutoSIPrefix(False)
-        diss_plot.showGrid(x=True, y=True)
-
-        diss_plot.plot(
+        plot.plot(
             freqs,
-            diss,
-            pen=pg.mkPen(width=2),
+            transmission,
+            pen=pg.mkPen("r", width=2),
             symbol="o",
-            symbolSize=8
+            symbolSize=4,
+            symbolBrush="r",
+            name="T"
         )
 
-        diss_text = pg.TextItem("", anchor=(0, 1))
-        diss_text.setZValue(100)
-        diss_text.hide()
-        diss_plot.addItem(diss_text)
-
-        diss_np = np.array(diss, dtype=float)
-
-        def on_diss_mouse_moved(pos):
-            if not diss_plot.sceneBoundingRect().contains(pos):
-                diss_text.hide()
-                return
-
-            mouse_point = diss_plot.plotItem.vb.mapSceneToView(pos)
-            x_mouse = mouse_point.x()
-
-            idx = int(np.argmin(np.abs(freqs_np - x_mouse)))
-
-            f_val = freqs_np[idx]
-            d_val = diss_np[idx]
-
-            x_range = diss_plot.viewRange()[0]
-            tolerance = (x_range[1] - x_range[0]) * 0.03
-
-            if abs(f_val - x_mouse) <= tolerance:
-                diss_text.setText(
-                    f"f = {f_val:.1f} Hz\n"
-                    f"D = {d_val:.3f} %"
-                )
-                diss_text.setPos(f_val, d_val)
-                diss_text.show()
-            else:
-                diss_text.hide()
-
-        diss_proxy = pg.SignalProxy(
-            diss_plot.scene().sigMouseMoved,
-            rateLimit=60,
-            slot=lambda evt: on_diss_mouse_moved(evt[0])
+        plot.plot(
+            freqs,
+            dissipation,
+            pen=pg.mkPen("y", width=2),
+            symbol="o",
+            symbolSize=4,
+            symbolBrush="w",
+            name="Dissipation:Δ = 1 - R - T"
         )
 
-        # Wichtig: Referenzen speichern, sonst kann Python sie löschen
-        dialog.voltage_proxy = voltage_proxy
-        dialog.diss_proxy = diss_proxy
-        dialog.voltage_text = voltage_text
-        dialog.diss_text = diss_text
+        plot.setYRange(0.0, 1.0, padding=0.05)
 
-        layout.addWidget(voltage_plot)
-        layout.addWidget(diss_plot)
+        if len(freqs) > 0:
+            plot.setXRange(float(np.min(freqs)), float(np.max(freqs)), padding=0.03)
+
+        # -------------------------------------------------
+        # Max. damping markieren
+        # -------------------------------------------------
+        idx_max = int(np.argmax(dissipation))
+        f_max = float(freqs[idx_max])
+        d_max = float(dissipation[idx_max])
+
+        max_text = pg.TextItem(
+            f"Max. damping\nf = {f_max:.1f} Hz\nΔ = {d_max:.3f}",
+            color="k",
+            anchor=(0, 1)
+        )
+        max_text.setPos(f_max, d_max)
+        plot.addItem(max_text)
+
+        max_marker = pg.ScatterPlotItem(
+            [f_max],
+            [d_max],
+            symbol="o",
+            size=14,
+            brush="w",
+            pen=pg.mkPen("k", width=2)
+        )
+        plot.addItem(max_marker)
+
+        # -------------------------------------------------
+        # Formel im Plot
+        # -------------------------------------------------
+        formula_text = pg.TextItem(
+            "Dissipation\nΔ = 1 - R - T",
+            color="k",
+            anchor=(0, 0)
+        )
+
+        x_formula = float(freqs[0] + 0.25 * (freqs[-1] - freqs[0]))
+        y_formula = 0.55
+        formula_text.setPos(x_formula, y_formula)
+        plot.addItem(formula_text)
+
+        layout.addWidget(plot)
 
         dialog.setLayout(layout)
         dialog.exec()
@@ -1185,11 +1232,28 @@ class SignalAnalysisScreen(QWidget):
         # Beispiel: 0.2 V Generator -> |A| = 1.0e-4
         A_abs = 5.0e-4 * generator_voltage
 
-        # Reflexion: 30 % der hinlaufenden Welle
-        B_abs = REFLECTION_FACTOR_SIM * A_abs
+        A_abs = 5.0e-4 * generator_voltage
+
+        # -------------------------------------------------
+        # Frequenzabhängiges Reflexionsmodell
+        # -------------------------------------------------
+        # r_abs ist |B|/|A|
+        # Wertebereich ungefähr 0.2 bis 0.95
+        r_abs = (
+            0.35
+            + 0.35 * np.exp(-((f0 - 500.0) / 250.0) ** 2)
+            + 0.25 * np.exp(-((f0 - 1600.0) / 300.0) ** 2)
+        )
+
+        r_abs = float(np.clip(r_abs, 0.05, 0.95))
+
+        # Frequenzabhängige Reflexionsphase
+        r_phase = -0.8 + 0.0025 * f0
+
+        B_abs = r_abs * A_abs
 
         A_sim = A_abs * np.exp(1j * 0.2)
-        B_sim = B_abs * np.exp(-1j * 0.7)
+        B_sim = B_abs * np.exp(1j * r_phase)
 
         positions = [MIC_X1, MIC_X2, MIC_X3]
         audio = np.zeros((n, self.num_channels), dtype=np.float64)

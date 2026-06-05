@@ -349,7 +349,7 @@ def format_wave_logs(wave: dict[str, Any]) -> list[tuple[str, str]]:
         (f"|B| = {wave['B_abs']:.6e}", "Info"),
         (f"Phase(B) = {wave['B_phase']:.6f} rad = {np.degrees(wave['B_phase']):.2f}°", "Info"),
         (f"Komplexer Reflexionsfaktor r = B/A = {r.real:.6e} + j({r.imag:.6e})", "Info"),
-        (f"|r| = |B/A| = {wave['r_abs']:.6f}", "Info"),
+        (f"wie viel Energie/Leistung reflektiert wird? |r| = |B/A| = {wave['r_abs']:.6f}", "Info"),
         (f"Phase(r) = {wave['r_phase']:.6f} rad = {np.degrees(wave['r_phase']):.2f}°", "Info"),
         (f"Reflexionsgrad R = |r|² = {wave['reflection_energy']:.6f}", "Info"),
         (f"Dissipation D = 1 - R = {wave['dissipation']:.6f}", "Info"),
