@@ -334,7 +334,7 @@ class ComplexResultsDialog(QDialog):
         layout.addLayout(mic_row)
         self.setLayout(layout)
 
-
+# plot zerlegte Wellen im Ortsbereich, also a(x), b(x) und p(x) = a(x) + b(x)
 class WaveDecompositionDialog(QDialog):
     def __init__(self, wave, f0, parent=None):
         super().__init__(parent)
@@ -348,7 +348,7 @@ class WaveDecompositionDialog(QDialog):
         back_button.clicked.connect(self.close)
         layout.addWidget(back_button)
 
-        title = QLabel(f"Wellenzerlegung bei f0 = {float(f0):.2f} Hz")
+        title = QLabel(f"Wellenzerlegung bei f0 = {float(f0):.2f} Hz. " f"Welenlänge λ in mm= {SPEED_OF_SOUND / float(f0) * 1000:.3f} mm")
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: blue;")
         layout.addWidget(title)
 
@@ -363,10 +363,10 @@ class WaveDecompositionDialog(QDialog):
 
         f0 = float(f0)
         k = 2.0 * np.pi * f0 / SPEED_OF_SOUND
-        lam = SPEED_OF_SOUND / f0
+        lam = SPEED_OF_SOUND / f0 # Wellenlänge in Meter
 
         # Plot beginnt links vor M3 und geht rechts ca. 2 Wellenlängen weiter
-        x_min = min(MIC_X1, MIC_X2, MIC_X3) - 0.03
+        x_min = min(MIC_X1, MIC_X2, MIC_X3) - 0.00
         x_max = max(MIC_X1, MIC_X2, MIC_X3) + 2.0 * lam
 
         # x in Meter für Rechnung

@@ -21,13 +21,13 @@ from estimation import estimate_forward_reflected_three_mics_ls
 
 import numpy as np
 
-# hEre wird das Zreit-Signal von einem Mikrofon in die komplexe Amplitude bei einer Frequenz f0 umgerechnet
+# hier wird das Zeit-Signal aufgenommen, entweder von der Scarlett oder als Simulation, und in ein numpy-Array umgewandelt
 def record_signal(
     duration,
     using_simulation,
     generate_simulated_signal,
-    create_focusrite,
-):
+    create_focusrite,) -> tuple[np.ndarray, Any]:
+
     if using_simulation:
         raw_signal = generate_simulated_signal(duration)
         print(
@@ -42,8 +42,8 @@ def record_signal(
         f"Aufnahme von Focusrite: signal.shape={raw_signal.shape}, "
         f"signal.dtype={raw_signal.dtype}"
     )
-   
-    return np.asarray(raw_signal, dtype=np.float32), focusrite
+    raw_signal = np.asarray(raw_signal, dtype=np.float32)
+    return raw_signal, focusrite
 
 # Formatierung des Signal und Sicherstellen dass sie die richtige Anzahl von Kanälen hat, sowie Kalibrierung anwenden
 def prepare_recording_signal(
@@ -77,9 +77,7 @@ def prepare_recording_signal(
     if calibration is not None:
         for ch in range(num_channels):
             signal[:, ch] *= float(calibration.get(ch + 1, 1.0))
-
-
-
+            
     return signal
 
 
@@ -368,8 +366,8 @@ def process_recorded_signal(
     sample_rate: float,
     num_channels: int,
     calibration: dict[int, float],
-    wave_cfg: SimpleNamespace,
-) -> dict[str, Any]:
+    wave_cfg: SimpleNamespace,) -> dict[str, Any]:
+
     """Komplette Auswertung einer Aufnahme, aber ohne GUI und ohne Aufnahme-Hardware."""
     signal = prepare_recording_signal(raw_signal, num_channels, calibration)
 
