@@ -461,7 +461,7 @@ class WaveDecompositionDialog(QDialog):
         db_plot.setLabel("left", "Pegel [dBµV]")
         db_plot.getAxis("bottom").enableAutoSIPrefix(False)
         db_plot.getAxis("left").enableAutoSIPrefix(False)
-        db_plot.setMouseEnabled(x=True, y=False)
+        db_plot.setMouseEnabled(x=False, y=True)
         db_plot.showGrid(x=True, y=True)
         db_plot.addLegend()
 
@@ -826,7 +826,7 @@ class SignalAnalysisScreen(QWidget):
         row1.addWidget(self.device_combo)
      
 
-        self.f0_detected_label = QLabel("Freq. bei FFT: - Hz")
+        self.f0_detected_label = QLabel("Freq. : - Hz")
         row1.addWidget(self.f0_detected_label)
         self.f0_detected_label.setStyleSheet("font-size: 20px; font-weight: bold; color: blue;")
 
@@ -1579,7 +1579,7 @@ class SignalAnalysisScreen(QWidget):
             x=self.fft_freq_axis.copy(),
             y=np.asarray(self.fft_buffers[ch]).copy(),
             xlabel="Frequenz [Hz]",
-            ylabel="|FFT|",
+            ylabel="|FFT| [dBµV]",
             parent=self,
         )
         f0 = self._get_f0()

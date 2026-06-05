@@ -89,8 +89,8 @@ def estimate_f0_from_fft(signal, sample_rate):
     spectrum = np.abs(np.fft.rfft(x))
 
     mask = (freqs >= 150) & (freqs <= 2000)
-    idx = np.argmax(spectrum[mask])
-    print(f"freqs = {freqs[mask][idx]:.2f} Hz, Spektrum={spectrum[mask][idx]:.6e}")
+    idx = np.argmax(spectrum[mask]) # Index des Maximums im gefilterten Frequenzbereich
+    print(f"freqs = {freqs[mask][idx]:.2f} Hz, Spektrum={spectrum[mask][idx]:.6e}" f" Index={idx}")
 
     return freqs[mask][idx]
 
