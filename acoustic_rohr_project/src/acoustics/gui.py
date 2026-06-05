@@ -58,6 +58,7 @@ from signal_process import (
     format_microphone_logs,
     format_wave_logs,
     prepare_recording_signal,
+     estimate_f0_from_fft,
     
 )
 
@@ -630,7 +631,6 @@ class SignalAnalysisScreen(QWidget):
         self.device_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.device_combo.setMinimumContentsLength(45)
 
-        self.refresh_focusrite_button = QPushButton("Eingabegeräte aktualisieren")
 
         row1.addWidget(QLabel("Signalquelle"))
         row1.addWidget(self.source_combo)
@@ -646,11 +646,9 @@ class SignalAnalysisScreen(QWidget):
 
         row1.addWidget(QLabel("Eingabegerät"))
         row1.addWidget(self.device_combo)
-
-        row1.addWidget(self.refresh_focusrite_button)
      
 
-        self.f0_detected_label = QLabel("gefunden: - Hz")
+        self.f0_detected_label = QLabel("Gefundene Freq. bei FFT: - Hz")
         row1.addWidget(self.f0_detected_label)
 
         row1.addStretch()
@@ -722,8 +720,6 @@ class SignalAnalysisScreen(QWidget):
 
     def _connect_signals(self):
         self.source_combo.currentTextChanged.connect(self.on_source_changed)
-
-        self.refresh_focusrite_button.clicked.connect(self.refresh_focusrite_devices)
         self.audio_start_button.clicked.connect(self.start_audio)
         self.audio_stop_button.clicked.connect(self.stop_audio)
         self.record_button.clicked.connect(self.on_record_clicked)
@@ -1241,7 +1237,8 @@ class SignalAnalysisScreen(QWidget):
         self.last_chunk = signal
         self.last_mode = "live"
 
-        f0 = self._get_f0()
+        f0 = estimate_f0_from_fft(signal, self._get_sample_rate())
+        self.f0_detected_label.setText(f"f0: {float(f0):.2f} Hz")
 
         self.update_time_plot(signal, f0)
 
@@ -1319,7 +1316,7 @@ class SignalAnalysisScreen(QWidget):
     def show_measurement_result(self, result):
         f0 = result.get("f0", self._get_f0())
 
-        self.f0_detected_label.setText(f"gefunden: {float(f0):.2f} Hz")
+        self.f0_detected_label.setText(f"Gefundene Freq. bei FFT: {float(f0):.2f} Hz")
 
         # NICHT mehr ins Eingabefeld schreiben,
         # sonst wird aus Auto-Modus wieder manueller Modus.
