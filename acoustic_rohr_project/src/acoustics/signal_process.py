@@ -77,7 +77,7 @@ def prepare_recording_signal(
     if calibration is not None:
         for ch in range(num_channels):
             signal[:, ch] *= float(calibration.get(ch + 1, 1.0))
-            
+
     return signal
 
 
@@ -161,8 +161,8 @@ def compute_fft_from_signal(
     signal: np.ndarray,
     sample_rate: float,
     f0: float,
-    num_channels: int = 3,
-) -> dict[str, Any]:
+    num_channels: int = 3,) -> dict[str, Any]:
+
     """Berechnet FFT-Beträge für alle Mikrofone mit Hanning-Fenster."""
     signal = prepare_recording_signal(signal, num_channels=num_channels)
 
@@ -276,13 +276,12 @@ def build_mic_result_dict(m: dict[str, Any], f0: float, num_mics: int = 3) -> di
 
     return result
 
-
-def format_measurement_logs(
+# diese Funktion erzeugt die Log-Texte für die Messergebnisse, damit sie in der GUI angezeigt werden können
+def format_measurement_logs( 
     duration: float,
     num_samples: int,
     sample_rate: float,
-    f0: float,
-) -> list[tuple[str, str]]:
+    f0: float,) -> list[tuple[str, str]]:
     """Log-Texte für Messeinstellungen."""
     freq_resolution = sample_rate / num_samples
     return [
@@ -334,7 +333,7 @@ def format_microphone_logs(m: dict[str, Any], num_channels: int = 3) -> list[tup
 
     return entries
 
-
+# Für log und Anzeige der Ergebnisse der Wellenzerlegung, also A, B, r, R, D, etc.
 def format_wave_logs(wave: dict[str, Any]) -> list[tuple[str, str]]:
     """Log-Texte für A/B-Wellenzerlegung und Reflexion."""
     A0 = wave["A"]
@@ -358,7 +357,7 @@ def format_wave_logs(wave: dict[str, Any]) -> list[tuple[str, str]]:
         (f"Residuum Least Squares = {wave['residual']:.6e}", "Info"),
     ]
 
-
+# Kette von Funktionen, die die komplette Signalverarbeitung durchführen
 def process_recorded_signal(
     raw_signal: np.ndarray,
     duration: float,
