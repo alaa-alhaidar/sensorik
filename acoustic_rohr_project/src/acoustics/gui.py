@@ -66,7 +66,7 @@ from signal_process import (
 # Feste Parameter für die automatische Messung
 SWEEP_START_FREQ = 300.0
 SWEEP_STOP_FREQ = 2000.0
-SWEEP_STEP_FREQ = 53.0
+SWEEP_STEP_FREQ = 50.0
 
 TARGET_AMP = 6.0e-5
 AMP_TOLERANCE = 0.05
@@ -442,6 +442,68 @@ class WaveDecompositionDialog(QDialog):
             pen=pg.mkPen("y", width=2),
             name="p(x) = a(x) + b(x)"
         )
+        # -------------------------------------------------
+        # Werte an den Mikrofonpositionen markieren
+        # Die Welle ist nur Hilfskurve; die Werte bei M1/M2/M3 sind wichtig.
+        # -------------------------------------------------
+        mic_positions = [
+            (MIC_X1, "M1"),
+            (MIC_X2, "M2"),
+            (MIC_X3, "M3"),
+        ]
+
+        for mic_x, mic_name in mic_positions:
+            mic_x_mm = mic_x * 1000.0
+
+            # Werte der Kurven genau an der Mikrofonposition
+            a_mic = A_abs * np.cos(-k * mic_x + A_phase) * 1e6
+            b_mic = B_abs * np.cos(+k * mic_x + B_phase) * 1e6
+            p_mic = a_mic + b_mic
+
+            # Punkt auf a(x)
+            wave_plot.plot(
+                [mic_x_mm],
+                [a_mic],
+                pen=None,
+                symbol="o",
+                symbolSize=10,
+                symbolBrush="c",
+                symbolPen=pg.mkPen("w", width=1),
+            )
+
+            # Punkt auf b(x)
+            wave_plot.plot(
+                [mic_x_mm],
+                [b_mic],
+                pen=None,
+                symbol="o",
+                symbolSize=10,
+                symbolBrush="m",
+                symbolPen=pg.mkPen("w", width=1),
+            )
+
+            # Punkt auf p(x)
+            wave_plot.plot(
+                [mic_x_mm],
+                [p_mic],
+                pen=None,
+                symbol="o",
+                symbolSize=12,
+                symbolBrush="y",
+                symbolPen=pg.mkPen("w", width=1),
+            )
+
+            # Werte als Text direkt neben p(x)-Punkt
+            value_text = pg.TextItem(
+                f"{mic_name}\n"
+                f"a={a_mic:.1f} µV\n"
+                f"b={b_mic:.1f} µV\n"
+                f"p={p_mic:.1f} µV",
+                color="w",
+                anchor=(0, 1)
+            )
+            value_text.setPos(mic_x_mm + 3.0, p_mic + 10.0)
+            wave_plot.addItem(value_text)
 
         wave_plot.setXRange(x_min_mm, x_max_mm, padding=0)
 
@@ -450,6 +512,8 @@ class WaveDecompositionDialog(QDialog):
         y_top = float(np.max(y_values))
         y_bottom = float(np.min(y_values))
         y_span = max(abs(y_top - y_bottom), 1.0)
+
+        
 
         mic_marks = [
             (MIC_X1, "M1", 0.85),
@@ -1015,7 +1079,6 @@ class SignalAnalysisScreen(QWidget):
 
         freqs = []
         reflection = []
-        transmission = []
         dissipation = []
 
         for item in self.sweep_results:
@@ -1037,20 +1100,7 @@ class SignalAnalysisScreen(QWidget):
             # Werte begrenzen
             R = float(np.clip(R, 0.0, 1.0))
 
-            # -----------------------------
-            # Transmission T
-            # Falls du keine Transmission misst: T = 0
-            # -----------------------------
-            if "transmission_energy" in item:
-                T = float(item["transmission_energy"])
-            elif "transmission" in item:
-                T = float(item["transmission"])
-            elif "T" in item:
-                T = float(item["T"])
-            else:
-                T = 0.0
-
-            T = float(np.clip(T, 0.0, 1.0))
+          
 
             # -----------------------------
             # Dissipation Δ = 1 - R - T
@@ -1060,35 +1110,29 @@ class SignalAnalysisScreen(QWidget):
             elif "dissipation_percent" in item:
                 D = float(item["dissipation_percent"]) / 100.0
             else:
-                D = 1.0 - R - T
+                D = 1.0 - R 
 
             D = float(np.clip(D, 0.0, 1.0))
 
             reflection.append(R)
-            transmission.append(T)
             dissipation.append(D)
 
         freqs = np.array(freqs, dtype=float)
         reflection = np.array(reflection, dtype=float)
-        transmission = np.array(transmission, dtype=float)
         dissipation = np.array(dissipation, dtype=float)
 
         # -------------------------------------------------
         # Dialog
         # -------------------------------------------------
         dialog = QDialog(self)
-        dialog.setWindowTitle("Reflexion, Transmission und Dissipation")
+        dialog.setWindowTitle("Reflexion und Dissipation")
         dialog.resize(1200, 750)
 
         layout = QVBoxLayout()
 
-        title = QLabel("Reflexion, Transmission und Dissipation über Frequenz")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: blue;")
-        layout.addWidget(title)
-
-        plot = pg.PlotWidget(title="Reflexion, Transmission und Dissipation über Frequenz")
+        plot = pg.PlotWidget(title="Reflexion und Dissipation über Frequenz")
         plot.setLabel("bottom", "Frequenz [Hz]")
-        plot.setLabel("left", "R, T, Δ")
+        plot.setLabel("left", "R, Δ")
         plot.getAxis("bottom").enableAutoSIPrefix(False)
         plot.getAxis("left").enableAutoSIPrefix(False)
         plot.showGrid(x=True, y=True)
@@ -1109,22 +1153,12 @@ class SignalAnalysisScreen(QWidget):
 
         plot.plot(
             freqs,
-            transmission,
-            pen=pg.mkPen("r", width=2),
-            symbol="o",
-            symbolSize=4,
-            symbolBrush="r",
-            name="T"
-        )
-
-        plot.plot(
-            freqs,
             dissipation,
             pen=pg.mkPen("y", width=2),
             symbol="o",
             symbolSize=4,
             symbolBrush="w",
-            name="Dissipation:Δ = 1 - R - T"
+            name="Dissipation:Δ = 1 - R"
         )
 
         plot.setYRange(0.0, 1.0, padding=0.05)
@@ -1161,7 +1195,7 @@ class SignalAnalysisScreen(QWidget):
         # Formel im Plot
         # -------------------------------------------------
         formula_text = pg.TextItem(
-            "Dissipation\nΔ = 1 - R - T",
+            "Dissipation\nΔ = 1 - R",
             color="k",
             anchor=(0, 0)
         )
