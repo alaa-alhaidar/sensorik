@@ -439,7 +439,7 @@ class WaveDecompositionDialog(QDialog):
         wave_plot.plot(
             x_mm,
             p_uv,
-            pen=pg.mkPen("y", width=2),
+            pen=pg.mkPen("g", width=2),
             name="p(x) = a(x) + b(x)"
         )
         # -------------------------------------------------
@@ -489,7 +489,7 @@ class WaveDecompositionDialog(QDialog):
                 pen=None,
                 symbol="o",
                 symbolSize=12,
-                symbolBrush="y",
+                symbolBrush="g",
                 symbolPen=pg.mkPen("w", width=1),
             )
 
@@ -591,6 +591,491 @@ class WaveDecompositionDialog(QDialog):
         layout.addWidget(db_box)
 
         self.setLayout(layout)
+
+
+class FrequencyAnalysisDialog(QDialog):
+    """Live-Dashboard mit vier Messdiagrammen."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Live-Wellenanalyse")
+        self.resize(1600, 1000)
+        self.setStyleSheet(
+            "QDialog { background: white; } "
+            "QGroupBox { background: white; font-weight: bold; "
+            "border: 1px solid #cfcfcf; border-radius: 6px; "
+            "margin-top: 10px; padding-top: 8px; }"
+        )
+
+        self.frequencies = []
+        self.reflection = []
+        self.dissipation = []
+        self.a_abs_uv = []
+        self.b_abs_uv = []
+        self.a_rms_dbuv = []
+        self.b_rms_dbuv = []
+        self.last_wave = None
+        self.last_frequency = None
+
+        main_layout = QVBoxLayout(self)
+
+        top = QHBoxLayout()
+        self.back_button = QPushButton("← Zurück")
+        self.back_button.setMaximumWidth(220)
+        self.back_button.clicked.connect(self._request_close)
+        self.status_label = QLabel("Noch keine Messdaten")
+        self.status_label.setStyleSheet(
+            "font-size: 17px; font-weight: bold; color: #003cff;"
+        )
+        top.addWidget(self.back_button)
+        top.addStretch()
+        top.addWidget(self.status_label)
+        main_layout.addLayout(top)
+
+        row_top = QHBoxLayout()
+        row_bottom = QHBoxLayout()
+
+        # Box 1: Reflexion und Dissipation gemeinsam
+        self.rd_plot = self._make_plot(
+            "Reflexion und Dissipation über Frequenz",
+            "Frequenz [Hz]",
+            "R, D",
+        )
+        self.reflection_curve = self.rd_plot.plot(
+            [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=6,
+            name="R = |B/A|²"
+        )
+        self.dissipation_curve = self.rd_plot.plot(
+            [], [], pen=pg.mkPen("r", width=3), symbol="o", symbolSize=6,
+            name="D = 1 - R"
+        )
+        self.rd_plot.setYRange(0.0, 1.0, padding=0.05)
+
+        # Box 2: Beträge A und B über Frequenz
+        self.ab_plot = self._make_plot(
+            "Hin- und rücklaufende Welle über Frequenz",
+            "Frequenz [Hz]",
+            "Amplitude [µV]",
+        )
+        self.a_curve = self.ab_plot.plot(
+            [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=5,
+            name="|A(f)| hinlaufend"
+        )
+        self.b_curve = self.ab_plot.plot(
+            [], [], pen=pg.mkPen("m", width=3), symbol="o", symbolSize=5,
+            name="|B(f)| rücklaufend"
+        )
+
+        # Box 3: alter Ortsplot mit M1, M2, M3
+        self.spatial_plot = self._make_plot(
+            "Wellenzerlegung im Ortsbereich",
+            "Rohrposition x [mm]",
+            "Amplitude [µV]",
+        )
+
+        # Box 4: RMS-Pegel als ortsunabhängige, horizontale Linien.
+        # Für den jeweils aktuellen Frequenzschritt sind |A| und |B| entlang
+        # des idealisierten Rohres konstant; deshalb werden zwei gerade Linien
+        # über der Rohrposition dargestellt.
+        self.rms_plot = self._make_plot(
+            "RMS-Pegel der hin- und rücklaufenden Welle",
+            "Rohrposition x [mm]",
+            "Pegel [dBµV]",
+        )
+        self.a_rms_curve = self.rms_plot.plot(
+            [], [], pen=pg.mkPen("c", width=3),
+            name="A_RMS hinlaufend"
+        )
+        self.b_rms_curve = self.rms_plot.plot(
+            [], [], pen=pg.mkPen("m", width=3),
+            name="B_RMS rücklaufend"
+        )
+        self.rms_x_mm = np.array([], dtype=float)
+        self.current_a_rms_dbuv = None
+        self.current_b_rms_dbuv = None
+
+        # Hover-Anzeigen: Beim Bewegen über einen Messpunkt werden
+        # Frequenz und die zugehörigen Werte direkt am Punkt gezeigt.
+        self._install_frequency_hover(
+            self.rd_plot,
+            lambda: (
+                self.frequencies,
+                [("R", self.reflection), ("D", self.dissipation)],
+            ),
+            value_suffix="",
+        )
+        self._install_frequency_hover(
+            self.ab_plot,
+            lambda: (
+                self.frequencies,
+                [("|A|", self.a_abs_uv), ("|B|", self.b_abs_uv)],
+            ),
+            value_suffix=" µV",
+        )
+        self._install_rms_position_hover()
+
+        row_top.addWidget(self._box("Reflexion und Dissipation", self.rd_plot))
+        row_top.addWidget(self._box("A und B über Frequenz", self.ab_plot))
+        row_bottom.addWidget(self._box("Wellenzerlegung mit M1, M2, M3", self.spatial_plot))
+        row_bottom.addWidget(self._box("RMS hin- und rücklaufend", self.rms_plot))
+
+        main_layout.addLayout(row_top, 1)
+        main_layout.addLayout(row_bottom, 1)
+
+    def _request_close(self):
+        """Beendet den laufenden Sweep und schließt das Live-Fenster."""
+        parent = self.parent()
+        if parent is not None:
+            parent.sweep_cancel_requested = True
+        self.close()
+
+    def closeEvent(self, event):
+        parent = self.parent()
+        if parent is not None:
+            parent.sweep_cancel_requested = True
+        event.accept()
+
+    def _install_frequency_hover(self, plot, data_getter, value_suffix=""):
+        """Zeigt beim Hover den nächstgelegenen Messpunkt mit seinen Werten."""
+        marker = pg.ScatterPlotItem(
+            [], [],
+            symbol="o",
+            size=13,
+            brush=pg.mkBrush(255, 255, 255),
+            pen=pg.mkPen("k", width=2),
+        )
+        plot.addItem(marker)
+
+        label = pg.TextItem(
+            "",
+            color="k",
+            fill=pg.mkBrush(255, 255, 255, 230),
+            border=pg.mkPen(80, 80, 80),
+            anchor=(0, 1),
+        )
+        label.hide()
+        plot.addItem(label)
+
+        def on_mouse_moved(scene_pos):
+            if not plot.sceneBoundingRect().contains(scene_pos):
+                marker.setData([], [])
+                label.hide()
+                return
+
+            frequencies, series = data_getter()
+            if not frequencies:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            mouse_point = plot.getPlotItem().vb.mapSceneToView(scene_pos)
+            x = np.asarray(frequencies, dtype=float)
+            index = int(np.argmin(np.abs(x - mouse_point.x())))
+
+            # Nur anzeigen, wenn der Mauszeiger in der Nähe eines vorhandenen
+            # Frequenzpunktes liegt. Der Abstand wird aus der aktuellen
+            # sichtbaren x-Achse berechnet.
+            x_range = plot.getPlotItem().vb.viewRange()[0]
+            tolerance = max((x_range[1] - x_range[0]) * 0.025, 1.0)
+            if abs(x[index] - mouse_point.x()) > tolerance:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            values = []
+            for name, data in series:
+                if index < len(data):
+                    values.append((name, float(data[index])))
+
+            if not values:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            # Marker sitzt auf dem Wert der ersten Kurve; im Text stehen
+            # sämtliche Werte dieses Frequenzpunktes.
+            marker.setData([x[index]], [values[0][1]])
+            lines = [f"f = {x[index]:.1f} Hz"]
+            lines.extend(
+                f"{name} = {value:.3f}{value_suffix}"
+                for name, value in values
+            )
+            label.setText("\n".join(lines))
+            label.setPos(x[index], values[0][1])
+            label.show()
+
+        plot.scene().sigMouseMoved.connect(on_mouse_moved)
+
+        # Referenzen behalten, damit PyQt die Objekte und Callback-Funktionen
+        # während der gesamten Lebensdauer des Dialogs nicht freigibt.
+        if not hasattr(self, "_hover_items"):
+            self._hover_items = []
+        self._hover_items.append((plot, marker, label, on_mouse_moved))
+
+
+    def _install_rms_position_hover(self):
+        """Zeigt beim Hover die aktuellen horizontalen RMS-Werte."""
+        marker_a = pg.ScatterPlotItem(
+            [], [], symbol="o", size=12,
+            brush=pg.mkBrush("c"), pen=pg.mkPen("k", width=1),
+        )
+        marker_b = pg.ScatterPlotItem(
+            [], [], symbol="o", size=12,
+            brush=pg.mkBrush("m"), pen=pg.mkPen("k", width=1),
+        )
+        self.rms_plot.addItem(marker_a)
+        self.rms_plot.addItem(marker_b)
+
+        label = pg.TextItem(
+            "", color="k",
+            fill=pg.mkBrush(255, 255, 255, 235),
+            border=pg.mkPen(80, 80, 80), anchor=(0, 1),
+        )
+        label.hide()
+        self.rms_plot.addItem(label)
+
+        def on_mouse_moved(scene_pos):
+            plot = self.rms_plot
+            if not plot.sceneBoundingRect().contains(scene_pos):
+                marker_a.setData([], [])
+                marker_b.setData([], [])
+                label.hide()
+                return
+
+            if (
+                self.rms_x_mm.size == 0
+                or self.current_a_rms_dbuv is None
+                or self.current_b_rms_dbuv is None
+            ):
+                marker_a.setData([], [])
+                marker_b.setData([], [])
+                label.hide()
+                return
+
+            mouse_point = plot.getPlotItem().vb.mapSceneToView(scene_pos)
+            x_min = float(self.rms_x_mm[0])
+            x_max = float(self.rms_x_mm[-1])
+            x_pos = float(np.clip(mouse_point.x(), x_min, x_max))
+
+            marker_a.setData([x_pos], [self.current_a_rms_dbuv])
+            marker_b.setData([x_pos], [self.current_b_rms_dbuv])
+            label.setText(
+                f"x = {x_pos:.1f} mm\n"
+                f"A_RMS = {self.current_a_rms_dbuv:.3f} dBµV\n"
+                f"B_RMS = {self.current_b_rms_dbuv:.3f} dBµV"
+            )
+            label.setPos(x_pos, self.current_a_rms_dbuv)
+            label.show()
+
+        self.rms_plot.scene().sigMouseMoved.connect(on_mouse_moved)
+        if not hasattr(self, "_hover_items"):
+            self._hover_items = []
+        self._hover_items.append(
+            (self.rms_plot, marker_a, marker_b, label, on_mouse_moved)
+        )
+
+    @staticmethod
+    def _box(title, plot):
+        box = QGroupBox(title)
+        layout = QVBoxLayout(box)
+        layout.addWidget(plot)
+        return box
+
+    @staticmethod
+    def _make_plot(title, xlabel, ylabel):
+        plot = pg.PlotWidget(title=title, background="w")
+        plot.setLabel("bottom", xlabel, color="k")
+        plot.setLabel("left", ylabel, color="k")
+        plot.showGrid(x=True, y=True, alpha=0.25)
+        plot.addLegend()
+        plot.setMouseEnabled(x=True, y=True)
+        for axis_name in ("bottom", "left"):
+            axis = plot.getAxis(axis_name)
+            axis.setPen(pg.mkPen("k"))
+            axis.setTextPen(pg.mkPen("k"))
+            axis.enableAutoSIPrefix(False)
+        plot.getPlotItem().titleLabel.item.setDefaultTextColor("black")
+        return plot
+
+    def clear_data(self):
+        self.frequencies.clear()
+        self.reflection.clear()
+        self.dissipation.clear()
+        self.a_abs_uv.clear()
+        self.b_abs_uv.clear()
+        self.a_rms_dbuv.clear()
+        self.b_rms_dbuv.clear()
+        self.rms_x_mm = np.array([], dtype=float)
+        self.current_a_rms_dbuv = None
+        self.current_b_rms_dbuv = None
+        self.a_rms_curve.setData([], [])
+        self.b_rms_curve.setData([], [])
+        self.last_wave = None
+        self.last_frequency = None
+        self._refresh_frequency_curves()
+        self.spatial_plot.clear()
+        self.spatial_plot.addLegend()
+        self.status_label.setText("Sweep gestartet …")
+
+    def append_frequency_result(self, item):
+        f = float(item["frequency"])
+        A_abs = float(item["A_abs"])
+        B_abs = float(item["B_abs"])
+        R = float(np.clip(item["reflection_energy"], 0.0, 1.0))
+        D = float(np.clip(
+            item.get("dissipation", item.get("dissipation_percent", 0.0) / 100.0),
+            0.0,
+            1.0,
+        ))
+
+        eps = 1e-30
+        A_rms = A_abs / np.sqrt(2.0)
+        B_rms = B_abs / np.sqrt(2.0)
+        A_dbuv = 20.0 * np.log10((A_rms + eps) / 1e-6)
+        B_dbuv = 20.0 * np.log10((B_rms + eps) / 1e-6)
+
+        self.frequencies.append(f)
+        self.reflection.append(R)
+        self.dissipation.append(D)
+        self.a_abs_uv.append(A_abs * 1e6)
+        self.b_abs_uv.append(B_abs * 1e6)
+        self.a_rms_dbuv.append(A_dbuv)
+        self.b_rms_dbuv.append(B_dbuv)
+        self.current_a_rms_dbuv = float(A_dbuv)
+        self.current_b_rms_dbuv = float(B_dbuv)
+
+        wave = item.get("wave")
+        if wave is None and item.get("step_results"):
+            wave = item["step_results"][-1].get("wave")
+
+        if wave is not None:
+            self.last_wave = wave
+            self.last_frequency = f
+            self._update_spatial_wave(wave, f)
+
+        self._refresh_frequency_curves()
+        self.status_label.setText(
+            f"Live: f = {f:.1f} Hz | R = {R:.3f} | D = {D:.3f}"
+        )
+
+    def set_single_wave(self, wave, f0):
+        self.last_wave = wave
+        self.last_frequency = float(f0)
+        self._update_spatial_wave(wave, float(f0))
+        self.status_label.setText(f"Wellenzerlegung bei f = {float(f0):.1f} Hz")
+
+    def set_results(self, results):
+        self.clear_data()
+        for item in results:
+            self.append_frequency_result(item)
+        if results:
+            self.status_label.setText(f"{len(results)} Frequenzpunkte geladen")
+
+    def _refresh_frequency_curves(self):
+        x = np.asarray(self.frequencies, dtype=float)
+        self.reflection_curve.setData(x, np.asarray(self.reflection, dtype=float))
+        self.dissipation_curve.setData(x, np.asarray(self.dissipation, dtype=float))
+        self.a_curve.setData(x, np.asarray(self.a_abs_uv, dtype=float))
+        self.b_curve.setData(x, np.asarray(self.b_abs_uv, dtype=float))
+        if x.size:
+            x_min = float(np.min(x))
+            x_max = float(np.max(x))
+            if x_min == x_max:
+                margin = max(20.0, abs(x_min) * 0.05)
+                x_min -= margin
+                x_max += margin
+            for plot in (self.rd_plot, self.ab_plot):
+                plot.setXRange(x_min, x_max, padding=0.03)
+
+    def _update_spatial_wave(self, wave, f0):
+        """Zeichnet den bisherigen Ortsplot live mit M1, M2 und M3."""
+        A_abs = float(wave["A_abs"])
+        A_phase = float(wave["A_phase"])
+        B_abs = float(wave["B_abs"])
+        B_phase = float(wave["B_phase"])
+        f0 = float(f0)
+
+        k = 2.0 * np.pi * f0 / SPEED_OF_SOUND
+        x_min = -SPEED_OF_SOUND / f0
+        x_max = 0.0
+        x = np.linspace(x_min, x_max, 1000)
+        x_mm = x * 1000.0
+
+        # RMS-Plot: zwei gerade Linien über derselben Rohrposition.
+        eps = 1e-30
+        A_rms_dbuv = 20.0 * np.log10((A_abs / np.sqrt(2.0) + eps) / 1e-6)
+        B_rms_dbuv = 20.0 * np.log10((B_abs / np.sqrt(2.0) + eps) / 1e-6)
+        self.rms_x_mm = x_mm.copy()
+        self.current_a_rms_dbuv = float(A_rms_dbuv)
+        self.current_b_rms_dbuv = float(B_rms_dbuv)
+        self.a_rms_curve.setData(
+            x_mm, np.full_like(x_mm, A_rms_dbuv, dtype=float),
+            name=f"A_RMS = {A_rms_dbuv:.2f} dBµV",
+        )
+        self.b_rms_curve.setData(
+            x_mm, np.full_like(x_mm, B_rms_dbuv, dtype=float),
+            name=f"B_RMS = {B_rms_dbuv:.2f} dBµV",
+        )
+        self.rms_plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
+        self.rms_plot.setTitle(
+            f"RMS-Pegel bei f = {f0:.2f} Hz",
+            color="k",
+        )
+
+        a_uv = A_abs * np.cos(-k * x + A_phase) * 1e6
+        b_uv = B_abs * np.cos(+k * x + B_phase) * 1e6
+        p_uv = a_uv + b_uv
+
+        plot = self.spatial_plot
+        plot.clear()
+        plot.addLegend()
+        plot.setTitle(
+            f"Wellenzerlegung bei f = {f0:.2f} Hz, "
+            f"λ = {SPEED_OF_SOUND / f0 * 1000.0:.3f} mm",
+            color="k",
+        )
+
+        plot.plot(x_mm, a_uv, pen=pg.mkPen("c", width=2), name="a(x) hinlaufend")
+        plot.plot(x_mm, b_uv, pen=pg.mkPen("m", width=2), name="b(x) rücklaufend")
+        plot.plot(x_mm, p_uv, pen=pg.mkPen("g", width=2), name="p(x) = a(x) + b(x)")
+
+        y_values = np.concatenate([a_uv, b_uv, p_uv])
+        y_min = float(np.min(y_values))
+        y_max = float(np.max(y_values))
+        y_span = max(y_max - y_min, 1.0)
+
+        for index, (mic_x, mic_name) in enumerate(
+            [(MIC_X1, "M1"), (MIC_X2, "M2"), (MIC_X3, "M3")]
+        ):
+            mic_x_mm = mic_x * 1000.0
+            a_mic = A_abs * np.cos(-k * mic_x + A_phase) * 1e6
+            b_mic = B_abs * np.cos(+k * mic_x + B_phase) * 1e6
+            p_mic = a_mic + b_mic
+
+            plot.addItem(pg.InfiniteLine(
+                pos=mic_x_mm,
+                angle=90,
+                movable=False,
+                pen=pg.mkPen((120, 120, 0), width=1),
+            ))
+
+            plot.plot([mic_x_mm], [a_mic], pen=None, symbol="o", symbolSize=8,
+                      symbolBrush="c", symbolPen=pg.mkPen("k"))
+            plot.plot([mic_x_mm], [b_mic], pen=None, symbol="o", symbolSize=8,
+                      symbolBrush="m", symbolPen=pg.mkPen("k"))
+            plot.plot([mic_x_mm], [p_mic], pen=None, symbol="o", symbolSize=10,
+                      symbolBrush="g", symbolPen=pg.mkPen("k"))
+
+            text = pg.TextItem(
+                f"{mic_name}\na={a_mic:.1f} µV\nb={b_mic:.1f} µV\np={p_mic:.1f} µV",
+                color="k",
+                anchor=(0, 1),
+            )
+            text.setPos(mic_x_mm + 2.0, p_mic + (0.08 + 0.03 * index) * y_span)
+            plot.addItem(text)
+
+        plot.setXRange(x_min * 1000.0, x_max * 1000.0, padding=0)
+        plot.setYRange(y_min - 0.12 * y_span, y_max + 0.20 * y_span, padding=0)
 
 '''
 Die Klasse StartScreen ist das Hauptmenü der Anwendung, das drei große Buttons für die verschiedenen Funktionen bietet: "Automatische Messung",
@@ -823,6 +1308,8 @@ class SignalAnalysisScreen(QWidget):
         self.window_seconds = WINDOW_SECONDS
         self.live_elapsed_samples = 0
         self.wave_dialog = None
+        self.frequency_analysis_dialog = None
+        self.sweep_cancel_requested = False
         self.last_result = None
 
         self.plot_buffers = (
@@ -996,25 +1483,67 @@ class SignalAnalysisScreen(QWidget):
 
 
     def show_wave_window(self):
+        """Zeigt nur die Wellenzerlegung der letzten Einzelmessung."""
         if self.last_result is None:
             QMessageBox.information(
                 self,
                 "Keine Ergebnisse",
-                "Bitte zuerst eine Aufnahme durchführen."
+                "Bitte zuerst eine Aufnahme durchführen.",
             )
             return
 
-        wave = self.last_result["wave"]
-        f0 = self.last_result["f0"]
-
         self.wave_dialog = WaveDecompositionDialog(
-            wave=wave,
-            f0=f0,
+            wave=self.last_result["wave"],
+            f0=self.last_result["f0"],
             parent=self,
         )
         self.wave_dialog.show()
         self.wave_dialog.raise_()
         self.wave_dialog.activateWindow()
+
+    def prepare_live_frequency_dashboard(self):
+        """Wird ausschließlich beim Klick auf Frequenzschleife aufgerufen."""
+        if self.frequency_analysis_dialog is None:
+            self.frequency_analysis_dialog = FrequencyAnalysisDialog(parent=self)
+
+        self.sweep_cancel_requested = False
+        self.sweep_results = []
+        self.frequency_analysis_dialog.clear_data()
+        self.frequency_analysis_dialog.show()
+        self.frequency_analysis_dialog.raise_()
+        self.frequency_analysis_dialog.activateWindow()
+
+        # Das Fenster muss vor Beginn der blockierenden Messschleife sichtbar
+        # und vollständig gezeichnet werden.
+        QApplication.processEvents()
+        self.frequency_analysis_dialog.repaint()
+        QApplication.processEvents()
+
+    def update_live_frequency_dashboard(self, frequency_result, all_results=None):
+        """Fügt nach jeder vollständig gemessenen Frequenz einen Punkt hinzu."""
+        if self.sweep_cancel_requested:
+            return
+
+        if self.frequency_analysis_dialog is None:
+            self.frequency_analysis_dialog = FrequencyAnalysisDialog(parent=self)
+            self.frequency_analysis_dialog.show()
+
+        self.frequency_analysis_dialog.append_frequency_result(frequency_result)
+        if all_results is not None:
+            self.sweep_results = list(all_results)
+        else:
+            self.sweep_results = getattr(self, "sweep_results", []) + [frequency_result]
+
+        # Sofortiges Neuzeichnen aller vier Plots nach jedem Frequenzschritt.
+        self.frequency_analysis_dialog.repaint()
+        for plot in (
+            self.frequency_analysis_dialog.rd_plot,
+            self.frequency_analysis_dialog.ab_plot,
+            self.frequency_analysis_dialog.spatial_plot,
+            self.frequency_analysis_dialog.rms_plot,
+        ):
+            plot.repaint()
+        QApplication.processEvents()
 
     def set_fft_xrange_around_f0(self, f0=None):
         if f0 is None:
@@ -1776,6 +2305,12 @@ class MainWindow(QWidget):
                 SWEEP_STEP_FREQ,
             )
 
+            # Beim Klick auf "Frequenzschleife" wird das Live-Fenster sofort
+            # geöffnet. Danach ergänzt jeder abgeschlossene Frequenzschritt
+            # alle vier Diagramme um die neuen Messdaten.
+            self.signal_screen.prepare_live_frequency_dashboard()
+            QApplication.processEvents()
+
             sweep_results = run_frequency_sweep_steps(
                 generator=generator,
                 frequencies=frequencies,
@@ -1788,6 +2323,8 @@ class MainWindow(QWidget):
                 duration=duration,
                 measure_once=self.signal_screen.run_measurement,
                 compute_wave=self.signal_screen.compute_forward_reflected_results,
+                on_frequency_result=self.signal_screen.update_live_frequency_dashboard,
+                should_cancel=lambda: self.signal_screen.sweep_cancel_requested,
             )
 
             for sweep_item in sweep_results:
@@ -1799,10 +2336,8 @@ class MainWindow(QWidget):
                 )
 
                 for step_item in sweep_item["step_results"]:
-                    self.signal_screen.show_measurement_result(
-                        step_item["measurement_result"]
-                    )
-
+                    # Keine erneute FFT-/Zeitplot-Aktualisierung nach dem Sweep.
+                    # Die Live-Daten wurden bereits im Frequenz-Dashboard dargestellt.
                     self.signal_screen.log(
                         f"Schritt {step_item['step']}: "
                         f"f = {f0:.1f} Hz, "
@@ -1964,4 +2499,6 @@ def main():
 # Der Einstiegspunkt der Anwendung, der die MainWindow-Klasse erstellt und die Qt-Anwendung startet.
 if __name__ == "__main__":
     main()
+
+
 

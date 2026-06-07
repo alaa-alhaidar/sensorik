@@ -156,57 +156,86 @@ def measure_three_mics_at_frequency_by_f0(
 
     return result
 
-
 def compute_fft_from_signal(
-    signal: np.ndarray,
-    sample_rate: float,
-    f0: float,
-    num_channels: int = 3,) -> dict[str, Any]:
-
-    """Berechnet FFT-Beträge für alle Mikrofone mit Hanning-Fenster."""
-    signal = prepare_recording_signal(signal, num_channels=num_channels)
-
-    n = signal.shape[0]
-    if n < 2:
-        raise ValueError("Signal ist zu kurz für FFT.")
-    if sample_rate <= 0:
-        raise ValueError("sample_rate muss größer als 0 sein.")
-
-    freqs = np.fft.rfftfreq(n, d=1.0 / float(sample_rate))
-    window = np.hanning(n)
-    window_norm = float(np.sum(window))
-    if abs(window_norm) < 1e-30:
-        window_norm = float(n)
-
-    f0_index = int(np.argmin(np.abs(freqs - float(f0))))
-    fft_buffers: list[np.ndarray] = []
-    log_entries: list[tuple[str, str]] = [("FFT-Auswertung mit Hanning-Fenster", "title")]
-
-    for ch in range(num_channels):
-        x = signal[:, ch]
-        spectrum = np.fft.rfft(x * window)
-        amp = 2.0 * np.abs(spectrum) / window_norm
-
-        # FFT-Betrag als dBµV anzeigen
-        amp_rms = amp / np.sqrt(2.0)
-        amp_dbuv = 20.0 * np.log10((amp_rms + 1e-30) / 1e-6)
-
-        fft_buffers.append(amp_dbuv.astype(np.float32))
-        log_entries.append(
-            (
-                f"Mikrofon {ch + 1},FFT-Amplitude bei "
-                f"{freqs[f0_index]:.1f} Hz = {amp[f0_index]:.6e}",
-                "Info",
-            )
+        signal,
+        sample_rate,
+        f0,
+        num_channels=3,
+    ):
+        signal = prepare_recording_signal(
+            signal,
+            num_channels=num_channels,
         )
 
-    return {
-        "freqs": freqs.astype(np.float32),
-        "fft_buffers": fft_buffers,
-        "f0_index": f0_index,
-        "log_entries": log_entries,
-    }
+        n = signal.shape[0]
 
+        freqs = np.fft.fftfreq(
+            n,
+            d=1.0 / float(sample_rate),
+        )
+        freqs = np.fft.fftshift(freqs)
+
+        window = np.hanning(n)
+        window_norm = float(np.sum(window))
+
+        if abs(window_norm) < 1e-30:
+            window_norm = float(n)
+
+        f0_index = int(
+            np.argmin(np.abs(freqs - float(f0)))
+        )
+
+        fft_buffers = []
+        log_entries = [
+            ("FFT-Auswertung mit Hanning-Fenster", "title")
+        ]
+
+        for ch in range(num_channels):
+            x = signal[:, ch]
+
+            spectrum = np.fft.fft(x * window)
+            spectrum = np.fft.fftshift(spectrum)
+
+            amp = np.abs(spectrum) / window_norm
+
+            amp_rms = amp / np.sqrt(2.0)
+
+            amp_dbuv = 20.0 * np.log10(
+                (amp_rms + 1e-30) / 1e-6
+            )
+
+            fft_buffers.append(
+                amp_dbuv.astype(np.float32)
+            )
+
+            log_entries.append(
+                (
+                    f"Mikrofon {ch + 1}, FFT-Amplitude bei "
+                    f"{freqs[f0_index]:.1f} Hz = "
+                    f"{amp[f0_index]:.6e}",
+                    "Info",
+                )
+            )
+
+        # Nur den gewünschten sichtbaren FFT-Bereich zurückgeben.
+        # Dadurch kann PyQtGraph nicht wieder automatisch bis ±Nyquist
+        # (z. B. ±24 kHz bei 48 kHz Sample-Rate) herauszoomen.
+        display_mask = (freqs >= -3000.0) & (freqs <= 3000.0)
+        freqs_display = freqs[display_mask]
+        fft_buffers_display = [buf[display_mask] for buf in fft_buffers]
+
+        # Index von f0 im bereits begrenzten Anzeigebereich
+        if freqs_display.size:
+            f0_index_display = int(np.argmin(np.abs(freqs_display - float(f0))))
+        else:
+            f0_index_display = 0
+
+        return {
+            "freqs": freqs_display.astype(np.float32),
+            "fft_buffers": fft_buffers_display,
+            "f0_index": f0_index_display,
+            "log_entries": log_entries,
+        }
 
 def build_wave_config(c: float, x1: float, x2: float, x3: float) -> SimpleNamespace:
     """Erzeugt die Konfiguration für die Wellenzerlegung."""
@@ -395,3 +424,4 @@ def process_recorded_signal(
         "mic_results": mic_results,
         "log_entries": log_entries,
     }
+
