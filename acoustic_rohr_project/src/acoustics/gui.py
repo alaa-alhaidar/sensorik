@@ -1153,6 +1153,91 @@ class FrequencyAnalysisDialog(QDialog):
             f"Live: f = {f:.1f} Hz | R = {R:.3f} | D = {D:.3f}"
         )
 
+    def set_single_frequency_result(self, item):
+        self.clear_data()
+        self.append_frequency_result(item)
+
+        f = float(item["frequency"])
+        A_uv = float(item["A_abs"]) * 1e6
+        B_uv = float(item["B_abs"]) * 1e6
+        R = float(np.clip(item["reflection_energy"], 0.0, 1.0))
+        D = float(np.clip(
+            item.get("dissipation", item.get("dissipation_percent", 0.0) / 100.0),
+            0.0,
+            1.0,
+        ))
+
+        self.rd_plot.clear()
+        self.rd_plot.addLegend()
+        self.rd_plot.setTitle("Reflexion und Dissipation")
+        r_bar = pg.BarGraphItem(
+            x=[R / 2.0],
+            y=[1.0],
+            width=R,
+            height=0.45,
+            brush=pg.mkBrush("b"),
+            pen=pg.mkPen("b"),
+        )
+        d_bar = pg.BarGraphItem(
+            x=[D / 2.0],
+            y=[0.0],
+            width=D,
+            height=0.45,
+            brush=pg.mkBrush("r"),
+            pen=pg.mkPen("r"),
+        )
+        self.rd_plot.addItem(r_bar)
+        self.rd_plot.addItem(d_bar)
+        self.rd_plot.plot([R], [1.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
+        self.rd_plot.plot([D], [0.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
+        self.rd_plot.setLabel("bottom", "Wert")
+        self.rd_plot.setLabel("left", "")
+        self.rd_plot.getAxis("left").setTicks([[(1.0, "R"), (0.0, "D")]])
+        self.rd_plot.setXRange(0.0, 1.0, padding=0.05)
+        self.rd_plot.setYRange(-0.7, 1.7, padding=0)
+        r_text = pg.TextItem(f"R = {R:.3f}", color="k", anchor=(0, 0.5))
+        d_text = pg.TextItem(f"D = {D:.3f}", color="k", anchor=(0, 0.5))
+        r_text.setPos(min(R + 0.03, 0.95), 1.0)
+        d_text.setPos(min(D + 0.03, 0.95), 0.0)
+        self.rd_plot.addItem(r_text)
+        self.rd_plot.addItem(d_text)
+
+        self.ab_plot.clear()
+        self.ab_plot.addLegend()
+        self.ab_plot.setTitle(f"Hin- und rücklaufende Welle bei f = {f:.2f} Hz")
+        max_amp = max(A_uv, B_uv, 1.0)
+        a_bar = pg.BarGraphItem(
+            x=[A_uv / 2.0],
+            y=[1.0],
+            width=A_uv,
+            height=0.45,
+            brush=pg.mkBrush("c"),
+            pen=pg.mkPen("c"),
+        )
+        b_bar = pg.BarGraphItem(
+            x=[B_uv / 2.0],
+            y=[0.0],
+            width=B_uv,
+            height=0.45,
+            brush=pg.mkBrush("m"),
+            pen=pg.mkPen("m"),
+        )
+        self.ab_plot.addItem(a_bar)
+        self.ab_plot.addItem(b_bar)
+        self.ab_plot.plot([A_uv], [1.0], pen=None, symbol="o", symbolBrush="c", name=f"|A| = {A_uv:.3f} µV")
+        self.ab_plot.plot([B_uv], [0.0], pen=None, symbol="o", symbolBrush="m", name=f"|B| = {B_uv:.3f} µV")
+        self.ab_plot.setLabel("bottom", "Amplitude [µV]")
+        self.ab_plot.setLabel("left", "")
+        self.ab_plot.getAxis("left").setTicks([[(1.0, "|A|"), (0.0, "|B|")]])
+        self.ab_plot.setXRange(0.0, max_amp * 1.15, padding=0)
+        self.ab_plot.setYRange(-0.7, 1.7, padding=0)
+        a_text = pg.TextItem(f"|A| = {A_uv:.3f} µV", color="k", anchor=(0, 0.5))
+        b_text = pg.TextItem(f"|B| = {B_uv:.3f} µV", color="k", anchor=(0, 0.5))
+        a_text.setPos(A_uv + 0.03 * max_amp, 1.0)
+        b_text.setPos(B_uv + 0.03 * max_amp, 0.0)
+        self.ab_plot.addItem(a_text)
+        self.ab_plot.addItem(b_text)
+
     def set_single_wave(self, wave, f0):
         self.last_wave = wave
         self.last_frequency = float(f0)
@@ -1504,6 +1589,7 @@ class SignalAnalysisScreen(QWidget):
         self.live_elapsed_samples = 0
         self.wave_dialog = None
         self.frequency_analysis_dialog = None
+        self.recording_analysis_dialog = None
         self.automation_analysis_dialog = None
         self.sweep_cancel_requested = False
         self.last_result = None
@@ -1549,7 +1635,6 @@ class SignalAnalysisScreen(QWidget):
         self.back_button.setMaximumWidth(220)
         top_layout.addWidget(self.back_button)
         top_layout.addStretch()
-        self.show_wave_button = QPushButton("📈 Wellenzerlegung")
 
         group = QGroupBox("Signalquelle und Eingang")
         group_layout = QVBoxLayout()
@@ -1608,7 +1693,6 @@ class SignalAnalysisScreen(QWidget):
         self.show_results_button = QPushButton("Komplexspektrum anzeigen")
         self.auto_start_button = QPushButton("⚙ Automation")
         self.sweep_button = QPushButton("↻ Frequenzschleife")
-        self.show_sweep_plot_button = QPushButton("📈 Dissipation")
     
 
         row3.addWidget(self.audio_start_button)
@@ -1618,8 +1702,6 @@ class SignalAnalysisScreen(QWidget):
         row3.addWidget(self.show_results_button)
         row3.addWidget(self.auto_start_button)
         row3.addWidget(self.sweep_button)
-        row3.addWidget(self.show_sweep_plot_button)
-        row3.addWidget(self.show_wave_button)
         
 
         group_layout.addLayout(row1)
@@ -1675,7 +1757,6 @@ class SignalAnalysisScreen(QWidget):
         self.show_log_button.clicked.connect(self.show_log_window)
         self.show_results_button.clicked.connect(self.show_results_window)
         self.measurement_duration_edit.editingFinished.connect(self.refresh_time_axis_only)
-        self.show_wave_button.clicked.connect(self.show_wave_window)
 
 
     def show_wave_window(self):
@@ -2011,7 +2092,7 @@ class SignalAnalysisScreen(QWidget):
             return 48000.0
 
     def _get_f0(self):
-        return 0.0
+        return float(self.current_f0)
 
     
     # Simulation Signal
@@ -2342,6 +2423,7 @@ class SignalAnalysisScreen(QWidget):
                 return
 
             self.show_measurement_result(result)
+            self.show_recording_analysis_window(result)
 
         except Exception as e:
             QMessageBox.critical(self, "Eingabe-Fehler", str(e))
@@ -2402,6 +2484,27 @@ class SignalAnalysisScreen(QWidget):
             result["mic_results"],
             parent=self,
         )
+
+    def show_recording_analysis_window(self, result):
+        f0 = float(result["f0"])
+        wave = result["wave"]
+        item = {
+            "frequency": f0,
+            "A_abs": wave["A_abs"],
+            "B_abs": wave["B_abs"],
+            "reflection_energy": wave["reflection_energy"],
+            "dissipation": wave["dissipation"],
+            "dissipation_percent": wave["dissipation_percent"],
+            "wave": wave,
+            "step_results": [{"wave": wave}],
+        }
+
+        self.recording_analysis_dialog = FrequencyAnalysisDialog(parent=self)
+        self.recording_analysis_dialog.set_single_frequency_result(item)
+        self.recording_analysis_dialog.setWindowTitle("Analyse der Aufnahme")
+        self.recording_analysis_dialog.show()
+        self.recording_analysis_dialog.raise_()
+        self.recording_analysis_dialog.activateWindow()
 
     def compute_fft_from_signal(self, signal):
         try:
@@ -2515,7 +2618,6 @@ class MainWindow(QWidget):
         self.start_screen.auto_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.signal_screen))
         self.signal_screen.auto_start_button.clicked.connect(self.run_automatic_measurement)
         self.signal_screen.sweep_button.clicked.connect(self.run_frequency_sweep)
-        self.signal_screen.show_sweep_plot_button.clicked.connect(self.signal_screen.show_sweep_plot_window)
 
     '''
     Die Funktion run_frequency_sweep führt eine automatische Frequenzschleife durch, bei der die Generatorfrequenz
