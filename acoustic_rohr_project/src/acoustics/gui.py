@@ -91,8 +91,7 @@ WINDOW_SECONDS = 1.0          # Standardwert für das Eingabefeld
 DISPLAY_PERIODS = 5          # Anzeige: 5 Perioden
 
 # FFT-Anzeige
-FFT_MAX_FREQ = 2000
-FFT_VIEW_HALF_WIDTH = 200
+FFT_MAX_FREQ = 3000
 
 # Feste Rohr-/Mikrofonparameter
 SPEED_OF_SOUND = 344.0
@@ -1733,7 +1732,7 @@ class SignalAnalysisScreen(QWidget):
             fft_plot.showGrid(x=True, y=True)
             fft_plot.setMouseEnabled(x=True, y=False)
             fft_curve = fft_plot.plot([], [], pen="y")
-            fft_plot.setXRange(0, FFT_MAX_FREQ)
+            fft_plot.setXRange(-FFT_MAX_FREQ, FFT_MAX_FREQ, padding=0)
             fft_plot.scene().sigMouseClicked.connect(
                 lambda event, ch=ch: self.open_fft_window(ch)
             )
@@ -1868,18 +1867,8 @@ class SignalAnalysisScreen(QWidget):
         QApplication.processEvents()
 
     def set_fft_xrange_around_f0(self, f0=None):
-        if f0 is None:
-            f0 = self._get_f0()
-
-        f0 = float(f0)
-        sample_rate = self._get_sample_rate()
-        nyquist = sample_rate / 2.0
-
-        x_min = max(0.0, f0 - FFT_VIEW_HALF_WIDTH)
-        x_max = min(nyquist, f0 + FFT_VIEW_HALF_WIDTH)
-
         for plot in self.fft_plot_widgets:
-            plot.setXRange(x_min, x_max, padding=0)
+            plot.setXRange(-FFT_MAX_FREQ, FFT_MAX_FREQ, padding=0)
 
     # Simulation Generator
     def _get_simulated_generator_values(self):
@@ -2147,7 +2136,7 @@ class SignalAnalysisScreen(QWidget):
         audio = np.zeros((n, self.num_channels), dtype=np.float64)
 
         rng = np.random.default_rng(12345)
-        noise_level = 0.00 #2.0e-6
+        noise_level = 2.0e-9
 
         for ch, x in enumerate(positions):
             P = A_sim * np.exp(-1j * k * x) + B_sim * np.exp(1j * k * x)
@@ -2199,7 +2188,7 @@ class SignalAnalysisScreen(QWidget):
             self.fft_plot_curves[ch].setData(self.fft_freq_axis, self.fft_buffers[ch])
 
         for plot in self.fft_plot_widgets:
-            plot.setXRange(50, 3000, padding=0)
+            plot.setXRange(-FFT_MAX_FREQ, FFT_MAX_FREQ, padding=0)
 
     def refresh_time_axis_only(self):
         self.live_elapsed_samples = 0
@@ -2441,12 +2430,16 @@ class SignalAnalysisScreen(QWidget):
             self.focusrite.stop_input_stream()
             self.focusrite = None
 
+        measurement_start = time.monotonic()
         raw_signal, self.focusrite = record_signal(
             duration=duration,
             using_simulation=self._using_simulation(),
             generate_simulated_signal=self._generate_simulated_signal,
             create_focusrite=self._create_focusrite,
         )
+        remaining = float(duration) - (time.monotonic() - measurement_start)
+        if remaining > 0:
+            time.sleep(remaining)
 
         f0 = self._get_f0()
         sample_rate = self._get_sample_rate()
@@ -2556,14 +2549,7 @@ class SignalAnalysisScreen(QWidget):
             ylabel="|FFT| [dBµV]",
             parent=self,
         )
-        f0 = self._get_f0()
-        sample_rate = self._get_sample_rate()
-        nyquist = sample_rate / 2.0
-
-        x_min = max(0.0, f0 - FFT_VIEW_HALF_WIDTH)
-        x_max = min(nyquist, f0 + FFT_VIEW_HALF_WIDTH)
-
-        dialog.plot_widget.setXRange(x_min, x_max, padding=0)
+        dialog.plot_widget.setXRange(-FFT_MAX_FREQ, FFT_MAX_FREQ, padding=0)
 
         dialog.show()
         self.open_plot_windows.append(dialog)
@@ -2639,11 +2625,15 @@ class MainWindow(QWidget):
                 )
                 return
 
-            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)
             self.stack.setCurrentWidget(self.signal_screen)
 
             duration = self.signal_screen._get_measurement_duration()
             start_voltage = float(self.generator_screen.amp_edit.text())
+
+            self.signal_screen.log(
+                f"Frequenzschleife: Aufnahmezeit pro Frequenz = {duration:.3f} s",
+                category="title",
+            )
 
             frequencies = np.arange(
                 SWEEP_START_FREQ,
@@ -2741,11 +2731,14 @@ class MainWindow(QWidget):
                     f"Generatorspannung muss größer 0 und maximal {MAX_GENERATOR_VOLTAGE:.1f} V sein."
                 )
 
-            self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)
-            self.signal_screen.refresh_focusrite_devices()
             self.stack.setCurrentWidget(self.signal_screen)
 
             duration = self.signal_screen._get_measurement_duration()
+
+            self.signal_screen.log(
+                f"Automation: Aufnahmezeit pro Messschritt = {duration:.3f} s",
+                category="title",
+            )
 
             frequencies = np.arange(
                 SWEEP_START_FREQ,
