@@ -13,6 +13,7 @@ import pyqtgraph as pg
 from automation import (
     run_auto_measurement_steps,
     run_frequency_sweep_steps,
+    run_automatic_frequency_sweep_steps,
 )
 
 from estimation import (
@@ -591,6 +592,200 @@ class WaveDecompositionDialog(QDialog):
         layout.addWidget(db_box)
 
         self.setLayout(layout)
+
+
+class AutomationAnalysisDialog(QDialog):
+    """Live-Anzeige für den automatischen Frequenz-Sweep."""
+
+    def __init__(self, target_amp, tolerance=AMP_TOLERANCE, parent=None):
+        super().__init__(parent)
+        self.target_amp_uv = float(target_amp) * 1e6
+        self.tolerance = float(tolerance)
+        self.lower_tolerance_uv = self.target_amp_uv * (1.0 - self.tolerance)
+        self.upper_tolerance_uv = self.target_amp_uv * (1.0 + self.tolerance)
+        self.setWindowTitle("Automation über Frequenz")
+        self.resize(1400, 900)
+        self.setStyleSheet(
+            "QDialog { background: white; } "
+            "QGroupBox { background: white; font-weight: bold; "
+            "border: 1px solid #cfcfcf; border-radius: 6px; "
+            "margin-top: 10px; padding-top: 8px; }"
+        )
+
+        self.frequencies = []
+        self.a_abs_uv = []
+        self.b_abs_uv = []
+        self.voltages = []
+
+        layout = QVBoxLayout(self)
+
+        ab_box = QGroupBox("Hin- und rücklaufende Welle über Frequenz")
+        ab_layout = QVBoxLayout(ab_box)
+        self.ab_plot = pg.PlotWidget(background="w")
+        self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [µV]")
+        self.ab_plot.addLegend()
+        self.a_curve = self.ab_plot.plot(
+            [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=6,
+            name="|A(f)| hinlaufend"
+        )
+        self.b_curve = self.ab_plot.plot(
+            [], [], pen=pg.mkPen("m", width=3), symbol="o", symbolSize=6,
+            name="|B(f)| rücklaufend"
+        )
+        self.target_line = pg.InfiniteLine(
+            pos=self.target_amp_uv,
+            angle=0,
+            movable=False,
+            pen=pg.mkPen((80, 80, 80), width=2, style=Qt.DashLine),
+            label=f"Ziel |A| = {self.target_amp_uv:.1f} µV",
+            labelOpts={"position": 0.92, "color": (60, 60, 60)},
+        )
+        self.ab_plot.addItem(self.target_line)
+        ab_layout.addWidget(self.ab_plot)
+
+        voltage_box = QGroupBox("Benötigte Generator-Spannung je Frequenz")
+        voltage_layout = QVBoxLayout(voltage_box)
+        self.voltage_plot = pg.PlotWidget(background="w")
+        self._style_plot(self.voltage_plot, "Frequenz [Hz]", "Generator-Spannung [V]")
+        self.voltage_plot.addLegend()
+        self.voltage_curve = self.voltage_plot.plot(
+            [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=7,
+            name="U(f) für Zielamplitude"
+        )
+        voltage_layout.addWidget(self.voltage_plot)
+
+        layout.addWidget(ab_box, 1)
+        layout.addWidget(voltage_box, 1)
+
+        self._install_hover(
+            self.ab_plot,
+            lambda: (
+                self.frequencies,
+                [("|A|", self.a_abs_uv, " µV"), ("|B|", self.b_abs_uv, " µV")],
+            ),
+        )
+        self._install_hover(
+            self.voltage_plot,
+            lambda: (
+                self.frequencies,
+                [("U", self.voltages, " V")],
+            ),
+        )
+
+    @staticmethod
+    def _style_plot(plot, xlabel, ylabel):
+        plot.setLabel("bottom", xlabel, color="k")
+        plot.setLabel("left", ylabel, color="k")
+        plot.showGrid(x=True, y=True, alpha=0.25)
+        plot.setMouseEnabled(x=True, y=True)
+        for axis_name in ("bottom", "left"):
+            axis = plot.getAxis(axis_name)
+            axis.setPen(pg.mkPen("k"))
+            axis.setTextPen(pg.mkPen("k"))
+            axis.enableAutoSIPrefix(False)
+
+    def clear_data(self):
+        self.frequencies.clear()
+        self.a_abs_uv.clear()
+        self.b_abs_uv.clear()
+        self.voltages.clear()
+        self.a_curve.setData([], [])
+        self.b_curve.setData([], [])
+        self.voltage_curve.setData([], [])
+
+    def append_frequency_result(self, item):
+        self.frequencies.append(float(item["frequency"]))
+        self.a_abs_uv.append(float(item["A_abs"]) * 1e6)
+        self.b_abs_uv.append(float(item["B_abs"]) * 1e6)
+        self.voltages.append(float(item["voltage"]))
+
+        x = np.asarray(self.frequencies, dtype=float)
+        self.a_curve.setData(x, np.asarray(self.a_abs_uv, dtype=float))
+        self.b_curve.setData(x, np.asarray(self.b_abs_uv, dtype=float))
+        self.voltage_curve.setData(x, np.asarray(self.voltages, dtype=float))
+
+        if x.size:
+            x_min = float(np.min(x))
+            x_max = float(np.max(x))
+            if x_min == x_max:
+                margin = max(20.0, abs(x_min) * 0.05)
+                x_min -= margin
+                x_max += margin
+            self.ab_plot.setXRange(x_min, x_max, padding=0.03)
+            self.voltage_plot.setXRange(x_min, x_max, padding=0.03)
+
+            all_ab = np.asarray(
+                self.a_abs_uv
+                + self.b_abs_uv
+                + [self.target_amp_uv, self.lower_tolerance_uv, self.upper_tolerance_uv],
+                dtype=float,
+            )
+            y_min = float(np.min(all_ab))
+            y_max = float(np.max(all_ab))
+            y_span = max(y_max - y_min, 1.0)
+            self.ab_plot.setYRange(max(0.0, y_min - 0.12 * y_span), y_max + 0.15 * y_span, padding=0)
+
+            v = np.asarray(self.voltages, dtype=float)
+            v_min = float(np.min(v))
+            v_max = float(np.max(v))
+            v_span = max(v_max - v_min, max(v_max * 0.1, 0.01))
+            self.voltage_plot.setYRange(max(0.0, v_min - 0.12 * v_span), v_max + 0.15 * v_span, padding=0)
+
+    def _install_hover(self, plot, data_getter):
+        marker = pg.ScatterPlotItem(
+            [], [], symbol="o", size=13,
+            brush=pg.mkBrush(255, 255, 255),
+            pen=pg.mkPen("k", width=2),
+        )
+        plot.addItem(marker)
+        label = pg.TextItem(
+            "", color="k",
+            fill=pg.mkBrush(255, 255, 255, 235),
+            border=pg.mkPen(80, 80, 80), anchor=(0, 1),
+        )
+        label.hide()
+        plot.addItem(label)
+
+        def on_mouse_moved(scene_pos):
+            if not plot.sceneBoundingRect().contains(scene_pos):
+                marker.setData([], [])
+                label.hide()
+                return
+
+            frequencies, series = data_getter()
+            if not frequencies:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            mouse_point = plot.getPlotItem().vb.mapSceneToView(scene_pos)
+            x = np.asarray(frequencies, dtype=float)
+            index = int(np.argmin(np.abs(x - mouse_point.x())))
+            x_range = plot.getPlotItem().vb.viewRange()[0]
+            tolerance = max((x_range[1] - x_range[0]) * 0.025, 1.0)
+            if abs(x[index] - mouse_point.x()) > tolerance:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            values = []
+            for name, data, suffix in series:
+                if index < len(data):
+                    values.append((name, float(data[index]), suffix))
+            if not values:
+                return
+
+            marker.setData([x[index]], [values[0][1]])
+            lines = [f"f = {x[index]:.1f} Hz"]
+            lines.extend(f"{name} = {value:.4f}{suffix}" for name, value, suffix in values)
+            label.setText("\n".join(lines))
+            label.setPos(x[index], values[0][1])
+            label.show()
+
+        plot.scene().sigMouseMoved.connect(on_mouse_moved)
+        if not hasattr(self, "_hover_items"):
+            self._hover_items = []
+        self._hover_items.append((plot, marker, label, on_mouse_moved))
 
 
 class FrequencyAnalysisDialog(QDialog):
@@ -1309,6 +1504,7 @@ class SignalAnalysisScreen(QWidget):
         self.live_elapsed_samples = 0
         self.wave_dialog = None
         self.frequency_analysis_dialog = None
+        self.automation_analysis_dialog = None
         self.sweep_cancel_requested = False
         self.last_result = None
 
@@ -1500,6 +1696,49 @@ class SignalAnalysisScreen(QWidget):
         self.wave_dialog.show()
         self.wave_dialog.raise_()
         self.wave_dialog.activateWindow()
+
+    def prepare_automation_dashboard(self):
+        """Öffnet die Live-Anzeige für den automatischen Frequenz-Sweep."""
+        if self.automation_analysis_dialog is None:
+            self.automation_analysis_dialog = AutomationAnalysisDialog(
+                target_amp=TARGET_AMP,
+                tolerance=AMP_TOLERANCE,
+                parent=self,
+            )
+
+        self.sweep_cancel_requested = False
+        self.sweep_results = []
+        self.automation_analysis_dialog.clear_data()
+        self.automation_analysis_dialog.show()
+        self.automation_analysis_dialog.raise_()
+        self.automation_analysis_dialog.activateWindow()
+        QApplication.processEvents()
+        self.automation_analysis_dialog.repaint()
+        QApplication.processEvents()
+
+    def update_automation_dashboard(self, frequency_result, all_results=None):
+        """Aktualisiert A/B und gefundene Spannung nach jeder Frequenz."""
+        if self.sweep_cancel_requested:
+            return
+
+        if self.automation_analysis_dialog is None:
+            self.automation_analysis_dialog = AutomationAnalysisDialog(
+                target_amp=TARGET_AMP,
+                tolerance=AMP_TOLERANCE,
+                parent=self,
+            )
+            self.automation_analysis_dialog.show()
+
+        self.automation_analysis_dialog.append_frequency_result(frequency_result)
+        if all_results is not None:
+            self.sweep_results = list(all_results)
+        else:
+            self.sweep_results = getattr(self, "sweep_results", []) + [frequency_result]
+
+        self.automation_analysis_dialog.repaint()
+        self.automation_analysis_dialog.ab_plot.repaint()
+        self.automation_analysis_dialog.voltage_plot.repaint()
+        QApplication.processEvents()
 
     def prepare_live_frequency_dashboard(self):
         """Wird ausschließlich beim Klick auf Frequenzschleife aufgerufen."""
@@ -2314,12 +2553,7 @@ class MainWindow(QWidget):
             sweep_results = run_frequency_sweep_steps(
                 generator=generator,
                 frequencies=frequencies,
-                start_voltage=start_voltage,
-                target_amp=TARGET_AMP,
-                tolerance=AMP_TOLERANCE,
-                max_steps=MAX_AUTO_STEPS,
-                min_voltage=MIN_GENERATOR_VOLTAGE,
-                max_voltage=MAX_GENERATOR_VOLTAGE,
+                voltage=start_voltage,
                 duration=duration,
                 measure_once=self.signal_screen.run_measurement,
                 compute_wave=self.signal_screen.compute_forward_reflected_results,
@@ -2344,8 +2578,7 @@ class MainWindow(QWidget):
                         f"U = {step_item['voltage']:.4f} V"
                     )
                     self.signal_screen.log(
-                        f"|A| = {step_item['measured_A_abs']:.6e} V, "
-                        f"Ziel = {format_voltage(TARGET_AMP)}"
+                        f"|A(f)| = {step_item['measured_A_abs']:.6e} V"
                     )
                     self.signal_screen.log(
                         f"Dissipation = {step_item['wave']['dissipation_percent']:.3f} %"
@@ -2394,28 +2627,32 @@ class MainWindow(QWidget):
                 )
                 return
 
-            f0 = float(self.generator_screen.freq_edit.text())
-            voltage = float(self.generator_screen.amp_edit.text())
+            start_voltage = float(self.generator_screen.amp_edit.text())
 
-            if f0 <= 0:
-                raise ValueError("Generatorfrequenz muss größer als 0 Hz sein.")
-
-            if voltage <= 0 or voltage > MAX_GENERATOR_VOLTAGE:
+            if start_voltage <= 0 or start_voltage > MAX_GENERATOR_VOLTAGE:
                 raise ValueError(
                     f"Generatorspannung muss größer 0 und maximal {MAX_GENERATOR_VOLTAGE:.1f} V sein."
                 )
 
-            self.signal_screen.current_f0 = f0
             self.signal_screen.source_combo.setCurrentText(SOURCE_SIMULATION)
             self.signal_screen.refresh_focusrite_devices()
             self.stack.setCurrentWidget(self.signal_screen)
 
             duration = self.signal_screen._get_measurement_duration()
 
-            step_results = run_auto_measurement_steps(
+            frequencies = np.arange(
+                SWEEP_START_FREQ,
+                SWEEP_STOP_FREQ,
+                SWEEP_STEP_FREQ,
+            )
+
+            self.signal_screen.prepare_automation_dashboard()
+            QApplication.processEvents()
+
+            sweep_results = run_automatic_frequency_sweep_steps(
                 generator=generator,
-                f0=f0,
-                start_voltage=voltage,
+                frequencies=frequencies,
+                start_voltage=start_voltage,
                 target_amp=TARGET_AMP,
                 tolerance=AMP_TOLERANCE,
                 max_steps=MAX_AUTO_STEPS,
@@ -2424,54 +2661,45 @@ class MainWindow(QWidget):
                 duration=duration,
                 measure_once=self.signal_screen.run_measurement,
                 compute_wave=self.signal_screen.compute_forward_reflected_results,
+                on_frequency_result=self.signal_screen.update_automation_dashboard,
+                should_cancel=lambda: self.signal_screen.sweep_cancel_requested,
             )
 
-            for item in step_results:
-                step = item["step"]
-                wave = item["wave"]
-                measurement_result = item["measurement_result"]
-
-                self.signal_screen.show_measurement_result(measurement_result)
+            for sweep_item in sweep_results:
+                f0 = float(sweep_item["frequency"])
 
                 self.signal_screen.log(
-                    f"Automatik Schritt {step}",
+                    f"Automation bei f = {f0:.1f} Hz",
                     category="title",
                 )
-                self.signal_screen.log(
-                    f"Generator: f = {item['frequency']:.2f} Hz, U = {item['voltage']:.4f} V"
-                )
-                self.signal_screen.log(
-                    f"Ziel-Amplitude |A| = {format_voltage(TARGET_AMP)}"
-                )
-                self.signal_screen.log(
-                    f"Gemessene hinlaufende Welle |A| = {format_voltage(item['measured_A_abs'])}"
-                )
-                self.signal_screen.log(
-                    f"Relativer Fehler = {item['relative_error']:.3f}"
-                )
-                self.signal_screen.log(
-                    f"Reflexion |B|/|A| = {wave['B_over_A']:.6f}"
-                )
-                self.signal_screen.log(
-                    f"Reflexionsgrad R = {wave['reflection_energy']:.6f}"
-                )
-                self.signal_screen.log(
-                    f"Dissipation = {wave['dissipation_percent']:.3f} %"
-                )
 
-                QApplication.processEvents()
-
-                if item["ok"]:
+                for step_item in sweep_item["step_results"]:
                     self.signal_screen.log(
-                        "Ziel-Amplitude |A| erreicht.",
+                        f"Schritt {step_item['step']}: "
+                        f"U = {step_item['voltage']:.4f} V, "
+                        f"|A| = {format_voltage(step_item['measured_A_abs'])}, "
+                        f"Fehler = {step_item['relative_error']:.3f}"
+                    )
+
+                if sweep_item["target_reached"]:
+                    self.signal_screen.log(
+                        f"Ziel {format_voltage(TARGET_AMP)} erreicht.",
+                        category="title",
+                    )
+                else:
+                    self.signal_screen.log(
+                        f"Ziel {format_voltage(TARGET_AMP)} nicht erreicht.",
                         category="title",
                     )
 
-            if not step_results[-1]["ok"]:
-                self.signal_screen.log(
-                    "Ziel-Amplitude |A| nicht erreicht.",
-                    category="title",
-                )
+                QApplication.processEvents()
+
+            self.signal_screen.sweep_results = sweep_results
+
+            self.signal_screen.log(
+                "Automatischer Frequenz-Sweep abgeschlossen.",
+                category="title",
+            )
 
         except Exception as e:
             try:
@@ -2499,6 +2727,3 @@ def main():
 # Der Einstiegspunkt der Anwendung, der die MainWindow-Klasse erstellt und die Qt-Anwendung startet.
 if __name__ == "__main__":
     main()
-
-
-

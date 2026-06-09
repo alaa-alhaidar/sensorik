@@ -102,6 +102,81 @@ def run_auto_measurement_steps(
 def run_frequency_sweep_steps(
     generator,
     frequencies,
+    voltage,
+    duration,
+    measure_once,
+    compute_wave,
+    on_frequency_result=None,
+    should_cancel=None,
+):
+    """
+    Führt eine Frequenzschleife ohne Amplitudenregelung aus.
+
+    Für jede Frequenz:
+    - gleiche Generator-Spannung
+    - genau eine Messung
+    - keine Anpassung an TARGET_AMP
+    """
+
+    sweep_results = []
+    voltage = float(voltage)
+
+    generator.set_sine()
+    generator.output_on()
+
+    for f0 in frequencies:
+        if should_cancel is not None and should_cancel():
+            break
+
+        f0 = float(f0)
+        generator.set_output(f0, voltage)
+
+        measurement_result = measure_once(duration, f0)
+        if measurement_result is None:
+            raise RuntimeError(f"Messung bei {f0:.1f} Hz fehlgeschlagen.")
+
+        m = measurement_result["m"]
+        wave = compute_wave(m, f0)
+
+        step_result = {
+            "step": 1,
+            "frequency": f0,
+            "voltage": voltage,
+            "measurement_result": measurement_result,
+            "m": m,
+            "wave": wave,
+            "measured_A_abs": wave["A_abs"],
+            "ok": True,
+            "relative_error": 0.0,
+        }
+
+        frequency_result = {
+            "frequency": f0,
+            "voltage": voltage,
+            "A_abs": wave["A_abs"],
+            "B_abs": wave["B_abs"],
+            "B_over_A": wave["B_over_A"],
+            "reflection_energy": wave["reflection_energy"],
+            "dissipation": wave["dissipation"],
+            "dissipation_percent": wave["dissipation_percent"],
+            "residual": wave["residual"],
+            "wave": wave,
+            "step_results": [step_result],
+        }
+
+        sweep_results.append(frequency_result)
+
+        if on_frequency_result is not None:
+            on_frequency_result(frequency_result, list(sweep_results))
+
+        if should_cancel is not None and should_cancel():
+            break
+
+    return sweep_results
+
+def run_automatic_frequency_sweep_steps(
+    generator,
+    frequencies,
     start_voltage,
     target_amp,
     tolerance,
@@ -115,13 +190,16 @@ def run_frequency_sweep_steps(
     should_cancel=None,
 ):
     """
-    Führt Frequenzschleife aus.
+    Automatischer Frequenz-Sweep mit Amplitudenregelung.
 
-    Auch diese Funktion kennt keine GUI.
-    Sie gibt nur Daten zurück.
+    Für jede Frequenz wird run_auto_measurement_steps() ausgeführt,
+    bis |A| innerhalb der Toleranz am TARGET_AMP liegt.
+    Die zuletzt gefundene Spannung wird als Startwert für die nächste
+    Frequenz verwendet.
     """
 
     sweep_results = []
+    voltage = float(start_voltage)
 
     generator.set_sine()
     generator.output_on()
@@ -130,10 +208,12 @@ def run_frequency_sweep_steps(
         if should_cancel is not None and should_cancel():
             break
 
+        f0 = float(f0)
+
         step_results = run_auto_measurement_steps(
             generator=generator,
             f0=f0,
-            start_voltage=start_voltage,
+            start_voltage=voltage,
             target_amp=target_amp,
             tolerance=tolerance,
             max_steps=max_steps,
@@ -144,12 +224,18 @@ def run_frequency_sweep_steps(
             compute_wave=compute_wave,
         )
 
+        if not step_results:
+            raise RuntimeError(f"Keine Messung bei {f0:.1f} Hz erhalten.")
+
         last = step_results[-1]
         wave = last["wave"]
 
+        # Gefundene Spannung als Startwert für nächste Frequenz übernehmen.
+        voltage = float(last["voltage"])
+
         frequency_result = {
             "frequency": f0,
-            "voltage": last["voltage"],
+            "voltage": voltage,
             "A_abs": wave["A_abs"],
             "B_abs": wave["B_abs"],
             "B_over_A": wave["B_over_A"],
@@ -159,12 +245,11 @@ def run_frequency_sweep_steps(
             "residual": wave["residual"],
             "wave": wave,
             "step_results": step_results,
+            "target_reached": bool(last["ok"]),
         }
 
         sweep_results.append(frequency_result)
 
-        # Optionaler Callback für eine Live-GUI. Er wird nach jeder
-        # vollständig ausgewerteten Frequenz aufgerufen.
         if on_frequency_result is not None:
             on_frequency_result(frequency_result, list(sweep_results))
 
@@ -172,4 +257,5 @@ def run_frequency_sweep_steps(
             break
 
     return sweep_results
+
 
