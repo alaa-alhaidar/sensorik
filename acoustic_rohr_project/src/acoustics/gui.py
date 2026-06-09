@@ -620,6 +620,7 @@ class AutomationAnalysisDialog(QDialog):
         layout = QVBoxLayout(self)
 
         ab_box = QGroupBox("Hin- und rücklaufende Welle über Frequenz")
+        ab_box.setAlignment(Qt.AlignHCenter)
         ab_layout = QVBoxLayout(ab_box)
         self.ab_plot = pg.PlotWidget(background="w")
         self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [µV]")
@@ -644,6 +645,7 @@ class AutomationAnalysisDialog(QDialog):
         ab_layout.addWidget(self.ab_plot)
 
         voltage_box = QGroupBox("Benötigte Generator-Spannung je Frequenz")
+        voltage_box.setAlignment(Qt.AlignHCenter)
         voltage_layout = QVBoxLayout(voltage_box)
         self.voltage_plot = pg.PlotWidget(background="w")
         self._style_plot(self.voltage_plot, "Frequenz [Hz]", "Generator-Spannung [V]")
@@ -1071,7 +1073,7 @@ class FrequencyAnalysisDialog(QDialog):
 
     @staticmethod
     def _box(title, plot):
-        box = QGroupBox(title)
+        box = QGroupBox()
         layout = QVBoxLayout(box)
         layout.addWidget(plot)
         return box
