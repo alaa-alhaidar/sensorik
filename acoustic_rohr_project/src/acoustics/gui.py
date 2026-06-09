@@ -2030,11 +2030,14 @@ class SignalAnalysisScreen(QWidget):
         if not output_enabled:
             return np.zeros((n, self.num_channels), dtype=np.float32)
 
-        # Zusammenhang zwischen Generator-Spannung und hinlaufender Welle
-        # Beispiel: 0.2 V Generator -> |A| = 1.0e-4
-        A_abs = 5.0e-4 * generator_voltage
-
-        A_abs = 5.0e-4 * generator_voltage
+        # Frequenzgang der simulierten Quelle / Messstrecke.
+        # Bei konstanter Generator-Spannung ist |A(f)| nicht konstant.
+        source_response = (
+            0.72
+            + 0.18 * np.exp(-((f0 - 650.0) / 300.0) ** 2)
+            + 0.14 * np.exp(-((f0 - 1450.0) / 380.0) ** 2)
+        )
+        A_abs = 5.0e-4 * generator_voltage * source_response
 
         # -------------------------------------------------
         # Frequenzabhängiges Reflexionsmodell
