@@ -14,7 +14,7 @@ def estimate_forward_reflected_three_mics_ls(P1, P2, P3, freqs_hz, cfg):
     B_est = np.zeros_like(P1, dtype=complex)
     residual_norm = np.zeros(len(freqs_hz))
 
-    # Löse für jede Frequenz das lineare Gleichungssystem A @ [A; B] = b mit den Messungen P1, P2, P3
+    # Löse für jede Frequenz das lineare Gleichungssystem M @ [A; B] = b mit den Messungen P1, P2, P3
     for i in range(len(freqs_hz)):
         M = np.array([
             [np.exp(-1j * k[i] * cfg.x1), np.exp(1j * k[i] * cfg.x1)],

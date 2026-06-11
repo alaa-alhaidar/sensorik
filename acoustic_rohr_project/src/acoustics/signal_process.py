@@ -90,7 +90,6 @@ def estimate_f0_from_fft(signal, sample_rate):
 
     mask = (freqs >= 150) & (freqs <= 2000)
     idx = np.argmax(spectrum[mask]) # Index des Maximums im gefilterten Frequenzbereich
-    print(f"freqs = {freqs[mask][idx]:.2f} Hz, Spektrum={spectrum[mask][idx]:.6e}" f" Index={idx}")
 
     return freqs[mask][idx]
 
@@ -263,7 +262,7 @@ def compute_forward_reflected_results(
 
     A0 = A[0]
     B0 = B[0]
-    r_complex = B0 / (A0 + 1e-12)
+    r_complex = B0 / A0
     r_abs = float(np.abs(r_complex))
     r_phase = float(np.angle(r_complex))
 
@@ -396,6 +395,8 @@ def process_recorded_signal(
     calibration: dict[int, float],
     wave_cfg: SimpleNamespace,) -> dict[str, Any]:
 
+    check_raw_clipping(raw_signal, limit=0.707)
+
     """Komplette Auswertung einer Aufnahme, aber ohne GUI und ohne Aufnahme-Hardware."""
     signal = prepare_recording_signal(raw_signal, num_channels, calibration)
 
@@ -425,3 +426,28 @@ def process_recorded_signal(
         "log_entries": log_entries,
     }
 
+def check_raw_clipping(raw_signal, limit=0.707):
+    """
+    Prüft Clipping-Gefahr am Rohsignal vor Kalibrierung.
+    limit=0.707 entspricht ungefähr -3 dBFS.
+    """
+    x = np.asarray(raw_signal, dtype=np.float64)
+
+    if x.ndim == 1:
+        x = x[:, np.newaxis]
+
+    for ch in range(x.shape[1]):
+        peak = float(np.max(np.abs(x[:, ch])))
+        dbfs = 20.0 * np.log10(peak + 1e-12)
+
+        print(
+            f"CLIPPING CHECK Kanal {ch + 1}: "
+            f"Peak={peak:.6f}, Peak={dbfs:.2f} dBFS"
+        )
+
+        if peak >= limit:
+            raise ValueError(
+                f"Clipping-Gefahr auf Kanal {ch + 1}: "
+                f"Peak={peak:.6f} ({dbfs:.2f} dBFS). "
+                f"Generator-Spannung oder Focusrite-Gain reduzieren."
+            )

@@ -61,9 +61,12 @@ class FocusriteInterface:
         """
         if duration is None or duration <= 0:
             duration = 1.0
+
         duration = float(duration)
         device_to_use = self._get_device()
-        print(f"Starte Aufnahme: Dauer={duration} Sekunden, Gerät={device_to_use}, ")
+
+        print(f"Starte Aufnahme: Dauer={duration} Sekunden, Gerät={device_to_use}")
+
         num_samples = int(round(self.sample_rate * duration))
 
         audio = sd.rec(
@@ -74,10 +77,25 @@ class FocusriteInterface:
             device=device_to_use,
             blocking=True,
         )
+
         sd.wait()
 
         audio = np.asarray(audio, dtype=np.float64)
+
+        for ch in range(audio.shape[1]):
+            rms = np.sqrt(np.mean(audio[:, ch] ** 2))
+            peak = np.max(np.abs(audio[:, ch]))
+            dbfs = 20.0 * np.log10(peak + 1e-12)
+
+            print(
+                f"Kanal {ch+1}: "
+                f"RMS={rms:.6e}, "
+                f"Peak={peak:.6e}, "
+                f"Peak={dbfs:.2f} dBFS"
+            )
+
         print(f"Aufnahme abgeschlossen: {audio.shape[0]} Samples, {audio.shape[1]} Kanäle.")
+
         return audio
 
     def start_input_stream(self):

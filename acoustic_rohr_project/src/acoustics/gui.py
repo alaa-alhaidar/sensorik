@@ -16,6 +16,8 @@ from automation import (
     run_automatic_frequency_sweep_steps,
 )
 
+from generator_hdw_panel import Agilent33120A
+
 from estimation import (
     estimate_forward_reflected_three_mics_ls,
 )
@@ -44,10 +46,9 @@ from PySide6.QtWidgets import (
 )
 
 
-from generator_interface import SimulatedGenerator
 from focusrite_interface import FocusriteInterface
 from estimation import estimate_forward_reflected_three_mics_ls
-from generator_hdw_panel import TektronixAFG320
+
 from signal_process import (
     build_wave_config,
     process_recorded_signal,
@@ -65,15 +66,15 @@ from signal_process import (
 )
 
 # Feste Parameter für die automatische Messung
-SWEEP_START_FREQ = 300.0
-SWEEP_STOP_FREQ = 2000.0
+SWEEP_START_FREQ = 350.0
+SWEEP_STOP_FREQ = 2050.0
 SWEEP_STEP_FREQ = 50.0
 
-TARGET_AMP = 6.0e-5
+TARGET_AMP = 0.15
 AMP_TOLERANCE = 0.05
 MAX_AUTO_STEPS = 10
-MIN_GENERATOR_VOLTAGE = 0.01
-MAX_GENERATOR_VOLTAGE = 2.0
+MIN_GENERATOR_VOLTAGE = 0.05
+MAX_GENERATOR_VOLTAGE = 1.0
 AUTO_STEP_PAUSE_SECONDS = 2.0
 
 NUM_CHANNELS = 3
@@ -82,7 +83,7 @@ NUM_CHANNELS = 3
 SOURCE_SIMULATION = "Simulation"
 SOURCE_SCARLETT = "Audio-Interface"
 
-USE_SIMULATED_GENERATOR = True   # Zuhause / Simulation
+USE_SIMULATED_GENERATOR = False   # Zuhause / Simulation
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
@@ -108,11 +109,11 @@ D = 0.64 → 64 % Energieverlust, 36 % Reflexion
 '''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
-# bei 1000 Hz: 6.4 µV bei 0.2 V Generator-Spannung, BeI 2000 hZ und 500 hZ ist auch ungefähr 6.4 µV
+# bei 1000 Hz: 6.4 µV bei 0.2 V Generator-Spannung, BeI 2000 hZ und 500 hZ ist auch ungefähr 6.4 µV (6,4 1,5 1,8)
 CALIBRATION = {
     1: 6.4,
-    2: 6.4,
-    3: 6.4,
+    2: 2.5,
+    3: 1.8,
 }
 
 # format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
@@ -598,7 +599,7 @@ class AutomationAnalysisDialog(QDialog):
 
     def __init__(self, target_amp, tolerance=AMP_TOLERANCE, parent=None):
         super().__init__(parent)
-        self.target_amp_uv = float(target_amp) * 1e6
+        self.target_amp_uv = float(target_amp) * 1e3
         self.tolerance = float(tolerance)
         self.lower_tolerance_uv = self.target_amp_uv * (1.0 - self.tolerance)
         self.upper_tolerance_uv = self.target_amp_uv * (1.0 + self.tolerance)
@@ -618,26 +619,23 @@ class AutomationAnalysisDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        ab_box = QGroupBox("Hin- und rücklaufende Welle über Frequenz")
+        ab_box = QGroupBox("Hinlaufende Welle über Frequenz")
         ab_box.setAlignment(Qt.AlignHCenter)
         ab_layout = QVBoxLayout(ab_box)
         self.ab_plot = pg.PlotWidget(background="w")
-        self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [µV]")
+        self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [mV]")
         self.ab_plot.addLegend()
         self.a_curve = self.ab_plot.plot(
             [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=6,
             name="|A(f)| hinlaufend"
         )
-        self.b_curve = self.ab_plot.plot(
-            [], [], pen=pg.mkPen("m", width=3), symbol="o", symbolSize=6,
-            name="|B(f)| rücklaufend"
-        )
+    
         self.target_line = pg.InfiniteLine(
             pos=self.target_amp_uv,
             angle=0,
             movable=False,
             pen=pg.mkPen((80, 80, 80), width=2, style=Qt.DashLine),
-            label=f"Ziel |A| = {self.target_amp_uv:.1f} µV",
+            label=f"Ziel |A| = {self.target_amp_uv:.1f} mV",
             labelOpts={"position": 0.92, "color": (60, 60, 60)},
         )
         self.ab_plot.addItem(self.target_line)
@@ -662,7 +660,7 @@ class AutomationAnalysisDialog(QDialog):
             self.ab_plot,
             lambda: (
                 self.frequencies,
-                [("|A|", self.a_abs_uv, " µV"), ("|B|", self.b_abs_uv, " µV")],
+                [("|A|", self.a_abs_uv, " mV")],
             ),
         )
         self._install_hover(
@@ -691,18 +689,15 @@ class AutomationAnalysisDialog(QDialog):
         self.b_abs_uv.clear()
         self.voltages.clear()
         self.a_curve.setData([], [])
-        self.b_curve.setData([], [])
         self.voltage_curve.setData([], [])
 
     def append_frequency_result(self, item):
         self.frequencies.append(float(item["frequency"]))
-        self.a_abs_uv.append(float(item["A_abs"]) * 1e6)
-        self.b_abs_uv.append(float(item["B_abs"]) * 1e6)
+        self.a_abs_uv.append(float(item["A_abs"]) * 1e3)
         self.voltages.append(float(item["voltage"]))
 
         x = np.asarray(self.frequencies, dtype=float)
         self.a_curve.setData(x, np.asarray(self.a_abs_uv, dtype=float))
-        self.b_curve.setData(x, np.asarray(self.b_abs_uv, dtype=float))
         self.voltage_curve.setData(x, np.asarray(self.voltages, dtype=float))
 
         if x.size:
@@ -716,11 +711,10 @@ class AutomationAnalysisDialog(QDialog):
             self.voltage_plot.setXRange(x_min, x_max, padding=0.03)
 
             all_ab = np.asarray(
-                self.a_abs_uv
-                + self.b_abs_uv
-                + [self.target_amp_uv, self.lower_tolerance_uv, self.upper_tolerance_uv],
-                dtype=float,
-            )
+                    self.a_abs_uv
+                    + [self.target_amp_uv, self.lower_tolerance_uv, self.upper_tolerance_uv],
+                    dtype=float,
+                )
             y_min = float(np.min(all_ab))
             y_max = float(np.max(all_ab))
             y_span = max(y_max - y_min, 1.0)
@@ -1424,11 +1418,11 @@ class GeneratorScreen(QWidget):
         title.setStyleSheet("font-size: 24px; font-weight: bold; margin: 20px 0;")
         main_layout.addWidget(title)
 
-        group = QGroupBox("Tektronix AFG320")
+        group = QGroupBox("Agilent 33120A")
         group_layout = QVBoxLayout()
 
         row1 = QHBoxLayout()
-        self.resource_edit = QLineEdit("GPIB0::10::INSTR")
+        self.resource_edit = QLineEdit("GPIB0::12::INSTR")
         self.gen_connect_button = QPushButton("Verbinden")
         self.gen_id_button = QPushButton("ID lesen")
 
@@ -1439,7 +1433,7 @@ class GeneratorScreen(QWidget):
 
         row2 = QHBoxLayout()
         self.freq_edit = QLineEdit(str(int(DEFAULT_MEASUREMENT_F0)))
-        self.amp_edit = QLineEdit("0.2")
+        self.amp_edit = QLineEdit("0.05")
         self.gen_sine_button = QPushButton("Sinus")
         self.gen_send_button = QPushButton("Werte senden")
 
@@ -1499,7 +1493,7 @@ class GeneratorScreen(QWidget):
                 self.generator.connect()
                 self.log("Simulierter Generator verbunden.")
             else:
-                self.generator = TektronixAFG320(resource)
+                self.generator = Agilent33120A(resource)
                 self.generator.connect()
                 self.log(f"Hardware-Generator verbunden: {resource}")
 
@@ -1535,8 +1529,11 @@ class GeneratorScreen(QWidget):
             freq = float(self.freq_edit.text())
             amp = float(self.amp_edit.text())
 
-            if amp < 0 or amp > 1.0:
-                raise ValueError("Amplitude muss zwischen 0.0 und 1.0 V liegen.")
+            if amp < MIN_GENERATOR_VOLTAGE or amp > MAX_GENERATOR_VOLTAGE:
+                raise ValueError(
+                    f"Amplitude muss zwischen {MIN_GENERATOR_VOLTAGE:.6f} V "
+                    f"und {MAX_GENERATOR_VOLTAGE:.1f} V liegen."
+    )
 
             self.generator.set_output(freq, amp)
             self.log(f"Gesendet: f={freq:.3f} Hz, U={amp:.3f} V")
@@ -2136,7 +2133,7 @@ class SignalAnalysisScreen(QWidget):
         audio = np.zeros((n, self.num_channels), dtype=np.float64)
 
         rng = np.random.default_rng(12345)
-        noise_level = 2.0e-9
+        noise_level = 2.0e-12
 
         for ch, x in enumerate(positions):
             P = A_sim * np.exp(-1j * k * x) + B_sim * np.exp(1j * k * x)

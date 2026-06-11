@@ -85,16 +85,27 @@ def run_auto_measurement_steps(
         if ok:
             break
 
-        if voltage >= max_voltage:
-            break
-
-        voltage = update_voltage_from_amplitude(
+        new_voltage = update_voltage_from_amplitude(
             voltage,
             target_amp,
             measured_A_abs,
             min_voltage,
             max_voltage,
         )
+        # Wenn wir schon am Minimum sind und |A| trotzdem größer als Ziel ist,
+        # kann die Automation das Ziel nicht erreichen.
+        # Dann nicht 10-mal wiederholen.
+        if new_voltage <= min_voltage and measured_A_abs > target_amp:
+            voltage = new_voltage
+            break
+
+        # Nur abbrechen, wenn Spannung schon am Maximum ist
+        # UND das Signal trotzdem zu klein ist.
+        if new_voltage >= max_voltage and measured_A_abs < target_amp:
+            voltage = new_voltage
+            break
+
+        voltage = new_voltage
 
     return results
 
