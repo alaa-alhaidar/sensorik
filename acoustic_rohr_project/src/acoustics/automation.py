@@ -268,5 +268,3 @@ def run_automatic_frequency_sweep_steps(
             break
 
     return sweep_results
-
-

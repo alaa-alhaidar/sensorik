@@ -10,17 +10,14 @@ import sounddevice as sd
 import numpy as np
 import pyqtgraph as pg
 
+from simulated_generator import SimulatedGenerator
 from automation import (
-    run_auto_measurement_steps,
+
     run_frequency_sweep_steps,
     run_automatic_frequency_sweep_steps,
 )
 
 from generator_hdw_panel import Agilent33120A
-
-from estimation import (
-    estimate_forward_reflected_three_mics_ls,
-)
 
 # PySide6-Importe
 from PySide6.QtWidgets import QSpinBox
@@ -47,14 +44,12 @@ from PySide6.QtWidgets import (
 
 
 from focusrite_interface import FocusriteInterface
-from estimation import estimate_forward_reflected_three_mics_ls
+
 
 from signal_process import (
     build_wave_config,
     process_recorded_signal,
     record_signal,
-    measure_at_frequency_by_f0 as sp_measure_at_frequency_by_f0,
-    measure_three_mics_at_frequency_by_f0 as sp_measure_three_mics_at_frequency_by_f0,
     compute_fft_from_signal as sp_compute_fft_from_signal,
     compute_forward_reflected_results as sp_compute_forward_reflected_results,
     build_mic_result_dict as sp_build_mic_result_dict,
@@ -74,7 +69,7 @@ TARGET_AMP = 0.15
 AMP_TOLERANCE = 0.05
 MAX_AUTO_STEPS = 10
 MIN_GENERATOR_VOLTAGE = 0.05
-MAX_GENERATOR_VOLTAGE = 1.0
+MAX_GENERATOR_VOLTAGE = 2.0
 AUTO_STEP_PAUSE_SECONDS = 2.0
 
 NUM_CHANNELS = 3
@@ -83,7 +78,7 @@ NUM_CHANNELS = 3
 SOURCE_SIMULATION = "Simulation"
 SOURCE_SCARLETT = "Audio-Interface"
 
-USE_SIMULATED_GENERATOR = False   # Zuhause / Simulation
+USE_SIMULATED_GENERATOR = True   # Zuhause / Simulation
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
@@ -111,9 +106,9 @@ REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
 # bei 1000 Hz: 6.4 µV bei 0.2 V Generator-Spannung, BeI 2000 hZ und 500 hZ ist auch ungefähr 6.4 µV (6,4 1,5 1,8)
 CALIBRATION = {
-    1: 6.4,
-    2: 2.5,
-    3: 1.8,
+    1: 1,
+    2: 1,
+    3: 1,
 }
 
 # format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
@@ -421,7 +416,7 @@ class WaveDecompositionDialog(QDialog):
         wave_plot.getAxis("left").enableAutoSIPrefix(False)
         wave_plot.setMouseEnabled(x=True, y=True)
         wave_plot.showGrid(x=True, y=True)
-        wave_plot.addLegend()
+        wave_plot.addLegend(offset=(10, 10))
 
         wave_plot.plot(
             x_mm,
@@ -548,7 +543,7 @@ class WaveDecompositionDialog(QDialog):
         db_plot.getAxis("left").enableAutoSIPrefix(False)
         db_plot.setMouseEnabled(x=False, y=True)
         db_plot.showGrid(x=True, y=True)
-        db_plot.addLegend()
+        db_plot.addLegend(offset=(10, 10))
 
         eps = 1e-30
         u_ref = 1e-6  # dBµV
@@ -624,7 +619,7 @@ class AutomationAnalysisDialog(QDialog):
         ab_layout = QVBoxLayout(ab_box)
         self.ab_plot = pg.PlotWidget(background="w")
         self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [mV]")
-        self.ab_plot.addLegend()
+        self.ab_plot.addLegend(offset=(10, 10))
         self.a_curve = self.ab_plot.plot(
             [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=6,
             name="|A(f)| hinlaufend"
@@ -646,7 +641,7 @@ class AutomationAnalysisDialog(QDialog):
         voltage_layout = QVBoxLayout(voltage_box)
         self.voltage_plot = pg.PlotWidget(background="w")
         self._style_plot(self.voltage_plot, "Frequenz [Hz]", "Generator-Spannung [V]")
-        self.voltage_plot.addLegend()
+        self.voltage_plot.addLegend(offset=(10, 10))
         self.voltage_curve = self.voltage_plot.plot(
             [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=7,
             name="U(f) für Zielamplitude"
@@ -907,7 +902,8 @@ class FrequencyAnalysisDialog(QDialog):
         row_top.addWidget(self._box("Reflexion und Dissipation", self.rd_plot))
         row_top.addWidget(self._box("A und B über Frequenz", self.ab_plot))
         row_bottom.addWidget(self._box("Wellenzerlegung mit M1, M2, M3", self.spatial_plot))
-        row_bottom.addWidget(self._box("RMS hin- und rücklaufend", self.rms_plot))
+        self.rms_box = self._box("RMS hin- und rücklaufend", self.rms_plot)
+        row_bottom.addWidget(self.rms_box)
 
         main_layout.addLayout(row_top, 1)
         main_layout.addLayout(row_bottom, 1)
@@ -1073,11 +1069,12 @@ class FrequencyAnalysisDialog(QDialog):
 
     @staticmethod
     def _make_plot(title, xlabel, ylabel):
-        plot = pg.PlotWidget(title=title, background="w")
+        plot = pg.PlotWidget(background="w")
+        plot.setTitle(title, color="k")
         plot.setLabel("bottom", xlabel, color="k")
         plot.setLabel("left", ylabel, color="k")
         plot.showGrid(x=True, y=True, alpha=0.25)
-        plot.addLegend()
+        plot.addLegend(offset=(10, 10))
         plot.setMouseEnabled(x=True, y=True)
         for axis_name in ("bottom", "left"):
             axis = plot.getAxis(axis_name)
@@ -1086,6 +1083,30 @@ class FrequencyAnalysisDialog(QDialog):
             axis.enableAutoSIPrefix(False)
         plot.getPlotItem().titleLabel.item.setDefaultTextColor("black")
         return plot
+
+    @staticmethod
+    def _add_top_right_legend(plot):
+        legend = plot.addLegend(
+            offset=(-10, 10),
+            brush=pg.mkBrush(255, 255, 255, 245),
+            pen=pg.mkPen(130, 130, 130),
+            labelTextColor=(0, 0, 0),
+        )
+        legend.anchor(itemPos=(1, 0), parentPos=(1, 0), offset=(-10, 10))
+        legend.setZValue(1000)
+        return legend
+
+    @staticmethod
+    def _add_bottom_right_legend(plot):
+        legend = plot.addLegend(
+            offset=(-10, -10),
+            brush=pg.mkBrush(255, 255, 255, 245),
+            pen=pg.mkPen(130, 130, 130),
+            labelTextColor=(0, 0, 0),
+        )
+        legend.anchor(itemPos=(1, 1), parentPos=(1, 1), offset=(-10, -10))
+        legend.setZValue(1000)
+        return legend
 
     def clear_data(self):
         self.frequencies.clear()
@@ -1104,7 +1125,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.last_frequency = None
         self._refresh_frequency_curves()
         self.spatial_plot.clear()
-        self.spatial_plot.addLegend()
+        self.spatial_plot.addLegend(offset=(10, 10))
         self.status_label.setText("Sweep gestartet …")
 
     def append_frequency_result(self, item):
@@ -1145,7 +1166,7 @@ class FrequencyAnalysisDialog(QDialog):
 
         self._refresh_frequency_curves()
         self.status_label.setText(
-            f"Live: f = {f:.1f} Hz | R = {R:.3f} | D = {D:.3f}"
+            f"f = {f:.1f} Hz | R = {R:.3f} | D = {D:.3f}"
         )
 
     def set_single_frequency_result(self, item):
@@ -1161,13 +1182,25 @@ class FrequencyAnalysisDialog(QDialog):
             0.0,
             1.0,
         ))
+        gamma = float(abs(item.get("B_over_A", item.get("r_abs", np.sqrt(R)))))
+        if gamma >= 1.0:
+            swr = np.inf
+            swr_plot_value = 20.0
+            swr_label = "∞"
+        else:
+            swr = (1.0 + gamma) / (1.0 - gamma)
+            swr_plot_value = float(swr)
+            swr_label = f"{swr:.3f}"
 
         self.rd_plot.clear()
-        self.rd_plot.addLegend()
-        self.rd_plot.setTitle("Reflexion und Dissipation")
+        self._add_top_right_legend(self.rd_plot)
+        self.rd_plot.setTitle(
+            "Reflexion, Dissipation und SWR bei f = {:.2f} Hz".format(f),
+            color="k",
+        )
         r_bar = pg.BarGraphItem(
             x=[R / 2.0],
-            y=[1.0],
+            y=[2.0],
             width=R,
             height=0.45,
             brush=pg.mkBrush("b"),
@@ -1175,31 +1208,55 @@ class FrequencyAnalysisDialog(QDialog):
         )
         d_bar = pg.BarGraphItem(
             x=[D / 2.0],
-            y=[0.0],
+            y=[1.0],
             width=D,
             height=0.45,
             brush=pg.mkBrush("r"),
             pen=pg.mkPen("r"),
         )
+        swr_bar = pg.BarGraphItem(
+            x=[swr_plot_value / 2.0],
+            y=[0.0],
+            width=swr_plot_value,
+            height=0.45,
+            brush=pg.mkBrush(255, 170, 0),
+            pen=pg.mkPen(255, 170, 0),
+        )
         self.rd_plot.addItem(r_bar)
         self.rd_plot.addItem(d_bar)
-        self.rd_plot.plot([R], [1.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
-        self.rd_plot.plot([D], [0.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
+        self.rd_plot.addItem(swr_bar)
+        self.rd_plot.plot([R], [2.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
+        self.rd_plot.plot([D], [1.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
+        self.rd_plot.plot(
+            [swr_plot_value],
+            [0.0],
+            pen=None,
+            symbol="o",
+            symbolBrush=pg.mkBrush(255, 170, 0),
+            name=f"SWR = {swr_label}",
+        )
         self.rd_plot.setLabel("bottom", "Wert")
         self.rd_plot.setLabel("left", "")
-        self.rd_plot.getAxis("left").setTicks([[(1.0, "R"), (0.0, "D")]])
-        self.rd_plot.setXRange(0.0, 1.0, padding=0.05)
-        self.rd_plot.setYRange(-0.7, 1.7, padding=0)
+        self.rd_plot.getAxis("left").setTicks([[(2.0, "R"), (1.0, "D"), (0.0, "SWR")]])
+        x_max = max(1.0, swr_plot_value) * 1.15
+        self.rd_plot.setXRange(0.0, x_max, padding=0.05)
+        self.rd_plot.setYRange(-0.7, 2.7, padding=0)
         r_text = pg.TextItem(f"R = {R:.3f}", color="k", anchor=(0, 0.5))
         d_text = pg.TextItem(f"D = {D:.3f}", color="k", anchor=(0, 0.5))
-        r_text.setPos(min(R + 0.03, 0.95), 1.0)
-        d_text.setPos(min(D + 0.03, 0.95), 0.0)
+        swr_text = pg.TextItem(f"SWR = {swr_label}", color="k", anchor=(0, 0.5))
+        r_text.setPos(min(R + 0.03 * x_max, x_max * 0.95), 2.0)
+        d_text.setPos(min(D + 0.03 * x_max, x_max * 0.95), 1.0)
+        swr_text.setPos(min(swr_plot_value + 0.03 * x_max, x_max * 0.95), 0.0)
         self.rd_plot.addItem(r_text)
         self.rd_plot.addItem(d_text)
+        self.rd_plot.addItem(swr_text)
 
         self.ab_plot.clear()
-        self.ab_plot.addLegend()
-        self.ab_plot.setTitle(f"Hin- und rücklaufende Welle bei f = {f:.2f} Hz")
+        self._add_bottom_right_legend(self.ab_plot)
+        self.ab_plot.setTitle(
+            f"Hin- und rücklaufende Welle bei f = {f:.2f} Hz",
+            color="k",
+        )
         max_amp = max(A_uv, B_uv, 1.0)
         a_bar = pg.BarGraphItem(
             x=[A_uv / 2.0],
@@ -1232,12 +1289,69 @@ class FrequencyAnalysisDialog(QDialog):
         b_text.setPos(B_uv + 0.03 * max_amp, 0.0)
         self.ab_plot.addItem(a_text)
         self.ab_plot.addItem(b_text)
+        self._update_spatial_swr_wave(item, f, gamma, swr_label)
 
     def set_single_wave(self, wave, f0):
         self.last_wave = wave
         self.last_frequency = float(f0)
         self._update_spatial_wave(wave, float(f0))
         self.status_label.setText(f"Wellenzerlegung bei f = {float(f0):.1f} Hz")
+
+    def _update_spatial_swr_wave(self, item, f0, gamma, swr_label):
+        wave = item.get("wave")
+        if wave is None and item.get("step_results"):
+            wave = item["step_results"][-1].get("wave")
+        if wave is None:
+            return
+
+        f0 = float(f0)
+        k = 2.0 * np.pi * f0 / SPEED_OF_SOUND
+        wavelength = SPEED_OF_SOUND / f0
+        x = np.linspace(-wavelength, 0.0, 1000)
+        x_mm = x * 1000.0
+
+        p_abs_uv = np.abs(
+            wave["A"] * np.exp(-1j * k * x)
+            + wave["B"] * np.exp(1j * k * x)
+        ) * 1e6
+
+        max_uv = float(np.max(p_abs_uv))
+        min_uv = float(np.min(p_abs_uv))
+
+        plot = self.rms_plot
+        plot.clear()
+        self._add_bottom_right_legend(plot)
+        plot.setTitle(
+            f"Ortsabhängiger Stehwellenverlauf bei f = {f0:.2f} Hz",
+            color="k",
+        )
+        plot.setLabel("bottom", "Rohrposition x [mm]")
+        plot.setLabel("left", "|p(x)| [µV]")
+
+        plot.plot(
+            x_mm,
+            p_abs_uv,
+            pen=pg.mkPen(0, 90, 220, width=3),
+            name=f"|p(x)|, SWR = {swr_label}",
+        )
+        plot.plot(
+            x_mm,
+            np.ones_like(x_mm) * max_uv,
+            pen=pg.mkPen("r", width=2, style=Qt.DashLine),
+            name=f"Maximum = {max_uv:.3f} µV",
+        )
+        plot.plot(
+            x_mm,
+            np.ones_like(x_mm) * min_uv,
+            pen=pg.mkPen("g", width=2, style=Qt.DashLine),
+            name=f"Minimum = {min_uv:.3f} µV",
+        )
+
+        plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
+        plot.setYRange(0.0, max(max_uv * 1.15, 1.0), padding=0)
+        self.status_label.setText(
+            f"f = {f0:.1f} Hz | |B/A| = {gamma:.3f} | SWR = {swr_label}"
+        )
 
     def set_results(self, results):
         self.clear_data()
@@ -1303,9 +1417,9 @@ class FrequencyAnalysisDialog(QDialog):
 
         plot = self.spatial_plot
         plot.clear()
-        plot.addLegend()
+        self._add_bottom_right_legend(plot)
         plot.setTitle(
-            f"Wellenzerlegung bei f = {f0:.2f} Hz, "
+            f"Momentaufnahme der Wellenzerlegung im Ortsbereich bei f = {f0:.2f} Hz, "
             f"λ = {SPEED_OF_SOUND / f0 * 1000.0:.3f} mm",
             color="k",
         )
@@ -1973,7 +2087,7 @@ class SignalAnalysisScreen(QWidget):
         plot.getAxis("bottom").enableAutoSIPrefix(False)
         plot.getAxis("left").enableAutoSIPrefix(False)
         plot.showGrid(x=True, y=True)
-        plot.addLegend()
+        plot.addLegend(offset=(350, 10))
 
         # -------------------------------------------------
         # Kurven wie im Beispiel
@@ -2484,6 +2598,8 @@ class SignalAnalysisScreen(QWidget):
             "frequency": f0,
             "A_abs": wave["A_abs"],
             "B_abs": wave["B_abs"],
+            "B_over_A": wave["B_over_A"],
+            "r_abs": wave["r_abs"],
             "reflection_energy": wave["reflection_energy"],
             "dissipation": wave["dissipation"],
             "dissipation_percent": wave["dissipation_percent"],
