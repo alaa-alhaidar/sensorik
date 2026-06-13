@@ -218,7 +218,7 @@ Zusätzlich werden unter jedem Plot detaillierte Informationen zum Spektrum bei 
 Phasenverschiebung und Zeitverschiebung angezeigt.
 '''
 class ComplexResultsDialog(QDialog):
-    def __init__(self, mic_results, parent=None):
+    def __init__(self, mic_results, f0=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Messergebnisse")
         self.resize(1600, 1000)
@@ -235,7 +235,15 @@ class ComplexResultsDialog(QDialog):
 
         layout.addLayout(top_layout)
 
-        title = QLabel("komplexe Schalldruck-Amplituden der Mikrofone (P)")
+        if f0 is None:
+            title_text = "komplexe Schalldruck-Amplituden der Mikrofone (P)"
+        else:
+            title_text = (
+                "komplexe Schalldruck-Amplituden der Mikrofone (P) "
+                f"bei f0 = {float(f0):.2f} Hz"
+            )
+
+        title = QLabel(title_text)
         title.setStyleSheet("font-size: 22px;")
         layout.addWidget(title)
 
@@ -416,7 +424,7 @@ class WaveDecompositionDialog(QDialog):
         wave_plot.getAxis("left").enableAutoSIPrefix(False)
         wave_plot.setMouseEnabled(x=True, y=True)
         wave_plot.showGrid(x=True, y=True)
-        wave_plot.addLegend(offset=(10, 10))
+        wave_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
 
         wave_plot.plot(
             x_mm,
@@ -543,7 +551,7 @@ class WaveDecompositionDialog(QDialog):
         db_plot.getAxis("left").enableAutoSIPrefix(False)
         db_plot.setMouseEnabled(x=False, y=True)
         db_plot.showGrid(x=True, y=True)
-        db_plot.addLegend(offset=(10, 10))
+        db_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
 
         eps = 1e-30
         u_ref = 1e-6  # dBµV
@@ -619,7 +627,7 @@ class AutomationAnalysisDialog(QDialog):
         ab_layout = QVBoxLayout(ab_box)
         self.ab_plot = pg.PlotWidget(background="w")
         self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [mV]")
-        self.ab_plot.addLegend(offset=(10, 10))
+        self.ab_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
         self.a_curve = self.ab_plot.plot(
             [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=6,
             name="|A(f)| hinlaufend"
@@ -641,7 +649,7 @@ class AutomationAnalysisDialog(QDialog):
         voltage_layout = QVBoxLayout(voltage_box)
         self.voltage_plot = pg.PlotWidget(background="w")
         self._style_plot(self.voltage_plot, "Frequenz [Hz]", "Generator-Spannung [V]")
-        self.voltage_plot.addLegend(offset=(10, 10))
+        self.voltage_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
         self.voltage_curve = self.voltage_plot.plot(
             [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=7,
             name="U(f) für Zielamplitude"
@@ -828,7 +836,7 @@ class FrequencyAnalysisDialog(QDialog):
         )
         self.reflection_curve = self.rd_plot.plot(
             [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=6,
-            name="R = |B/A|²"
+            name="R = |r|² = |B/A|²"
         )
         self.dissipation_curve = self.rd_plot.plot(
             [], [], pen=pg.mkPen("r", width=3), symbol="o", symbolSize=6,
@@ -842,6 +850,7 @@ class FrequencyAnalysisDialog(QDialog):
             "Frequenz [Hz]",
             "Amplitude [µV]",
         )
+        self._move_legend_bottom_left(self.ab_plot)
         self.a_curve = self.ab_plot.plot(
             [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=5,
             name="|A(f)| hinlaufend"
@@ -855,7 +864,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.spatial_plot = self._make_plot(
             "Wellenzerlegung im Ortsbereich",
             "Rohrposition x [mm]",
-            "Amplitude [µV]",
+            "Momentanwert [µV]",
         )
 
         # Box 4: RMS-Pegel als ortsunabhängige, horizontale Linien.
@@ -863,9 +872,9 @@ class FrequencyAnalysisDialog(QDialog):
         # des idealisierten Rohres konstant; deshalb werden zwei gerade Linien
         # über der Rohrposition dargestellt.
         self.rms_plot = self._make_plot(
-            "RMS-Pegel der hin- und rücklaufenden Welle",
+            "Ortsverlauf der stehenden Welle",
             "Rohrposition x [mm]",
-            "Pegel [dBµV]",
+            "|P<sub>rek</sub>(x)| [µV]",
         )
         self.a_rms_curve = self.rms_plot.plot(
             [], [], pen=pg.mkPen("c", width=3),
@@ -1074,7 +1083,7 @@ class FrequencyAnalysisDialog(QDialog):
         plot.setLabel("bottom", xlabel, color="k")
         plot.setLabel("left", ylabel, color="k")
         plot.showGrid(x=True, y=True, alpha=0.25)
-        plot.addLegend(offset=(10, 10))
+        plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
         plot.setMouseEnabled(x=True, y=True)
         for axis_name in ("bottom", "left"):
             axis = plot.getAxis(axis_name)
@@ -1091,8 +1100,22 @@ class FrequencyAnalysisDialog(QDialog):
             brush=pg.mkBrush(255, 255, 255, 245),
             pen=pg.mkPen(130, 130, 130),
             labelTextColor=(0, 0, 0),
+            labelTextSize="12pt",
         )
         legend.anchor(itemPos=(1, 0), parentPos=(1, 0), offset=(-10, 10))
+        legend.setZValue(1000)
+        return legend
+
+    @staticmethod
+    def _add_bottom_left_legend(plot):
+        legend = plot.addLegend(
+            offset=(10, -8),
+            brush=pg.mkBrush(255, 255, 255, 245),
+            pen=pg.mkPen(130, 130, 130),
+            labelTextColor=(0, 0, 0),
+            labelTextSize="12pt",
+        )
+        legend.anchor(itemPos=(0, 1), parentPos=(0, 1), offset=(10, -8))
         legend.setZValue(1000)
         return legend
 
@@ -1103,10 +1126,19 @@ class FrequencyAnalysisDialog(QDialog):
             brush=pg.mkBrush(255, 255, 255, 245),
             pen=pg.mkPen(130, 130, 130),
             labelTextColor=(0, 0, 0),
+            labelTextSize="12pt",
         )
         legend.anchor(itemPos=(1, 1), parentPos=(1, 1), offset=(-10, -10))
         legend.setZValue(1000)
         return legend
+
+    @staticmethod
+    def _move_legend_bottom_left(plot):
+        legend = plot.getPlotItem().legend
+        if legend is None:
+            return
+        legend.anchor(itemPos=(0, 1), parentPos=(0, 1), offset=(10, -8))
+        legend.setZValue(1000)
 
     def clear_data(self):
         self.frequencies.clear()
@@ -1125,7 +1157,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.last_frequency = None
         self._refresh_frequency_curves()
         self.spatial_plot.clear()
-        self.spatial_plot.addLegend(offset=(10, 10))
+        self.spatial_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
         self.status_label.setText("Sweep gestartet …")
 
     def append_frequency_result(self, item):
@@ -1195,12 +1227,15 @@ class FrequencyAnalysisDialog(QDialog):
         self.rd_plot.clear()
         self._add_top_right_legend(self.rd_plot)
         self.rd_plot.setTitle(
-            "Reflexion, Dissipation und SWR bei f = {:.2f} Hz".format(f),
+            "Reflexionskennwerte bei f = {:.2f} Hz".format(f),
             color="k",
         )
+        self.rd_plot.showAxis("bottom")
+        self.rd_plot.showAxis("left")
+        self.rd_plot.showGrid(x=True, y=True, alpha=0.25)
         r_bar = pg.BarGraphItem(
             x=[R / 2.0],
-            y=[2.0],
+            y=[1.0],
             width=R,
             height=0.45,
             brush=pg.mkBrush("b"),
@@ -1208,48 +1243,30 @@ class FrequencyAnalysisDialog(QDialog):
         )
         d_bar = pg.BarGraphItem(
             x=[D / 2.0],
-            y=[1.0],
+            y=[0.0],
             width=D,
             height=0.45,
             brush=pg.mkBrush("r"),
             pen=pg.mkPen("r"),
         )
-        swr_bar = pg.BarGraphItem(
-            x=[swr_plot_value / 2.0],
-            y=[0.0],
-            width=swr_plot_value,
-            height=0.45,
-            brush=pg.mkBrush(255, 170, 0),
-            pen=pg.mkPen(255, 170, 0),
-        )
         self.rd_plot.addItem(r_bar)
         self.rd_plot.addItem(d_bar)
-        self.rd_plot.addItem(swr_bar)
-        self.rd_plot.plot([R], [2.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
-        self.rd_plot.plot([D], [1.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
-        self.rd_plot.plot(
-            [swr_plot_value],
-            [0.0],
-            pen=None,
-            symbol="o",
-            symbolBrush=pg.mkBrush(255, 170, 0),
-            name=f"SWR = {swr_label}",
-        )
+        self.rd_plot.plot([R], [1.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
+        self.rd_plot.plot([D], [0.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
+        self.rd_plot.plot([], [], pen=None, symbol="o", symbolBrush=pg.mkBrush(120, 60, 220), name=f"|r| = {gamma:.3f}")
+        self.rd_plot.plot([], [], pen=None, symbol="o", symbolBrush=pg.mkBrush(255, 170, 0), name=f"SWR = {swr_label}")
         self.rd_plot.setLabel("bottom", "Wert")
         self.rd_plot.setLabel("left", "")
-        self.rd_plot.getAxis("left").setTicks([[(2.0, "R"), (1.0, "D"), (0.0, "SWR")]])
-        x_max = max(1.0, swr_plot_value) * 1.15
+        self.rd_plot.getAxis("left").setTicks([[(1.0, "R"), (0.0, "D")]])
+        x_max = max(1.0, R, D) * 1.15
         self.rd_plot.setXRange(0.0, x_max, padding=0.05)
-        self.rd_plot.setYRange(-0.7, 2.7, padding=0)
+        self.rd_plot.setYRange(-0.7, 1.7, padding=0)
         r_text = pg.TextItem(f"R = {R:.3f}", color="k", anchor=(0, 0.5))
         d_text = pg.TextItem(f"D = {D:.3f}", color="k", anchor=(0, 0.5))
-        swr_text = pg.TextItem(f"SWR = {swr_label}", color="k", anchor=(0, 0.5))
-        r_text.setPos(min(R + 0.03 * x_max, x_max * 0.95), 2.0)
-        d_text.setPos(min(D + 0.03 * x_max, x_max * 0.95), 1.0)
-        swr_text.setPos(min(swr_plot_value + 0.03 * x_max, x_max * 0.95), 0.0)
+        r_text.setPos(min(R + 0.03 * x_max, x_max * 0.95), 1.0)
+        d_text.setPos(min(D + 0.03 * x_max, x_max * 0.95), 0.0)
         self.rd_plot.addItem(r_text)
         self.rd_plot.addItem(d_text)
-        self.rd_plot.addItem(swr_text)
 
         self.ab_plot.clear()
         self._add_bottom_right_legend(self.ab_plot)
@@ -1306,8 +1323,8 @@ class FrequencyAnalysisDialog(QDialog):
 
         f0 = float(f0)
         k = 2.0 * np.pi * f0 / SPEED_OF_SOUND
-        wavelength = SPEED_OF_SOUND / f0
-        x = np.linspace(-wavelength, 0.0, 1000)
+        tube_length = 0.8
+        x = np.linspace(-tube_length, 0.0, 2000)
         x_mm = x * 1000.0
 
         p_abs_uv = np.abs(
@@ -1322,30 +1339,113 @@ class FrequencyAnalysisDialog(QDialog):
         plot.clear()
         self._add_bottom_right_legend(plot)
         plot.setTitle(
-            f"Ortsabhängiger Stehwellenverlauf bei f = {f0:.2f} Hz",
+            "Ortsverlauf der stehenden Welle |P<sub>rek</sub>(x)| "
+            f"bei f = {f0:.2f} Hz",
             color="k",
         )
         plot.setLabel("bottom", "Rohrposition x [mm]")
-        plot.setLabel("left", "|p(x)| [µV]")
+        plot.setLabel("left", "|P<sub>rek</sub>(x)| [µV]")
 
         plot.plot(
             x_mm,
             p_abs_uv,
             pen=pg.mkPen(0, 90, 220, width=3),
-            name=f"|p(x)|, SWR = {swr_label}",
+            name=(
+                "|P<sub>rek</sub>(x)|, "
+                f"SWR = {swr_label}"
+            ),
         )
         plot.plot(
             x_mm,
             np.ones_like(x_mm) * max_uv,
             pen=pg.mkPen("r", width=2, style=Qt.DashLine),
-            name=f"Maximum = {max_uv:.3f} µV",
+            name=f"p<sub>max</sub> = {max_uv:.3f} µV",
         )
         plot.plot(
             x_mm,
             np.ones_like(x_mm) * min_uv,
             pen=pg.mkPen("g", width=2, style=Qt.DashLine),
-            name=f"Minimum = {min_uv:.3f} µV",
+            name=f"p<sub>min</sub> = {min_uv:.3f} µV",
         )
+
+        wavelength_mm = SPEED_OF_SOUND / f0 * 1000.0
+        half_wavelength_mm = wavelength_mm / 2.0
+        peak_indices = np.flatnonzero(
+            (p_abs_uv[1:-1] >= p_abs_uv[:-2])
+            & (p_abs_uv[1:-1] >= p_abs_uv[2:])
+        ) + 1
+        if peak_indices.size >= 2:
+            plot_center_mm = float((x_mm[0] + x_mm[-1]) / 2.0)
+            peak_pairs = list(zip(peak_indices[:-1], peak_indices[1:]))
+            start_index, end_index = min(
+                peak_pairs,
+                key=lambda pair: abs(
+                    float((x_mm[pair[0]] + x_mm[pair[1]]) / 2.0) - plot_center_mm
+                ),
+            )
+            lambda_start_mm = float(x_mm[start_index])
+            lambda_end_mm = float(x_mm[end_index])
+        else:
+            visible_length_mm = float(x_mm[-1] - x_mm[0])
+            lambda_line_length_mm = min(half_wavelength_mm, visible_length_mm)
+            lambda_center_mm = float((x_mm[0] + x_mm[-1]) / 2.0)
+            lambda_start_mm = lambda_center_mm - lambda_line_length_mm / 2.0
+            lambda_end_mm = lambda_center_mm + lambda_line_length_mm / 2.0
+        lambda_center_mm = (lambda_start_mm + lambda_end_mm) / 2.0
+        lambda_y = max_uv * 0.78
+        tick_height = max(max_uv * 0.04, 0.25)
+
+        lambda_pen = pg.mkPen("k", width=2)
+        plot.plot([lambda_start_mm, lambda_end_mm], [lambda_y, lambda_y], pen=lambda_pen)
+        plot.plot(
+            [lambda_start_mm, lambda_start_mm],
+            [lambda_y - tick_height, lambda_y + tick_height],
+            pen=lambda_pen,
+        )
+        plot.plot(
+            [lambda_end_mm, lambda_end_mm],
+            [lambda_y - tick_height, lambda_y + tick_height],
+            pen=lambda_pen,
+        )
+        lambda_label = pg.TextItem(
+            f"Abstand der Maxima: λ/2 = {half_wavelength_mm:.1f} mm",
+            color="k",
+            anchor=(0.5, 1.8),
+        )
+        lambda_label.setPos(lambda_center_mm, lambda_y - tick_height * 1.8)
+        plot.addItem(lambda_label)
+
+        full_lambda_line_length_mm = min(wavelength_mm, float(x_mm[-1] - x_mm[0]))
+        full_lambda_start_mm = lambda_start_mm
+        full_lambda_end_mm = full_lambda_start_mm + full_lambda_line_length_mm
+        if full_lambda_end_mm > float(x_mm[-1]):
+            full_lambda_end_mm = float(x_mm[-1])
+            full_lambda_start_mm = full_lambda_end_mm - full_lambda_line_length_mm
+        full_lambda_center_mm = (full_lambda_start_mm + full_lambda_end_mm) / 2.0
+        full_lambda_y = max_uv * 0.94
+        full_lambda_pen = pg.mkPen(80, 80, 80, width=2, style=Qt.DashLine)
+        plot.plot(
+            [full_lambda_start_mm, full_lambda_end_mm],
+            [full_lambda_y, full_lambda_y],
+            pen=full_lambda_pen,
+        )
+        plot.plot(
+            [full_lambda_start_mm, full_lambda_start_mm],
+            [full_lambda_y - tick_height, full_lambda_y + tick_height],
+            pen=full_lambda_pen,
+        )
+        plot.plot(
+            [full_lambda_end_mm, full_lambda_end_mm],
+            [full_lambda_y - tick_height, full_lambda_y + tick_height],
+            pen=full_lambda_pen,
+        )
+        full_lambda_label = pg.TextItem(
+            f"λ = {wavelength_mm:.1f} mm",
+            color=(80, 80, 80),
+            anchor=(0.5, 1.2),
+        )
+        full_lambda_label.setPos(full_lambda_center_mm, full_lambda_y - tick_height)
+        plot.addItem(full_lambda_label)
 
         plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
         plot.setYRange(0.0, max(max_uv * 1.15, 1.0), padding=0)
@@ -1423,6 +1523,7 @@ class FrequencyAnalysisDialog(QDialog):
             f"λ = {SPEED_OF_SOUND / f0 * 1000.0:.3f} mm",
             color="k",
         )
+        plot.setLabel("left", "Momentanwert [µV]", color="k")
 
         plot.plot(x_mm, a_uv, pen=pg.mkPen("c", width=2), name="a(x) hinlaufend")
         plot.plot(x_mm, b_uv, pen=pg.mkPen("m", width=2), name="b(x) rücklaufend")
@@ -2087,7 +2188,7 @@ class SignalAnalysisScreen(QWidget):
         plot.getAxis("bottom").enableAutoSIPrefix(False)
         plot.getAxis("left").enableAutoSIPrefix(False)
         plot.showGrid(x=True, y=True)
-        plot.addLegend(offset=(350, 10))
+        plot.addLegend(offset=(350, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
 
         # -------------------------------------------------
         # Kurven wie im Beispiel
@@ -2588,6 +2689,7 @@ class SignalAnalysisScreen(QWidget):
 
         self.results_dialog = ComplexResultsDialog(
             result["mic_results"],
+            f0=f0,
             parent=self,
         )
 
