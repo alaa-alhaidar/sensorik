@@ -395,7 +395,7 @@ def process_recorded_signal(
     calibration: dict[int, float],
     wave_cfg: SimpleNamespace,) -> dict[str, Any]:
 
-    check_raw_clipping(raw_signal, limit=0.707)
+    check_raw_clipping(raw_signal, limit=0.707) # Clipping-Gefahr prüfen, bevor die Kalibrierung die Werte weiter verstärkt
 
     """Komplette Auswertung einer Aufnahme, aber ohne GUI und ohne Aufnahme-Hardware."""
     signal = prepare_recording_signal(raw_signal, num_channels, calibration)
@@ -430,24 +430,26 @@ def check_raw_clipping(raw_signal, limit=0.707):
     """
     Prüft Clipping-Gefahr am Rohsignal vor Kalibrierung.
     limit=0.707 entspricht ungefähr -3 dBFS.
+    Peak darf maximal 70,7 % der digitalen Vollaussteuerung erreichen
     """
-    x = np.asarray(raw_signal, dtype=np.float64)
+    x = np.asarray(raw_signal, dtype=np.float64) # sicherstellen, dass es ein numpy-Array ist
 
     if x.ndim == 1:
         x = x[:, np.newaxis]
 
-    for ch in range(x.shape[1]):
-        peak = float(np.max(np.abs(x[:, ch])))
-        dbfs = 20.0 * np.log10(peak + 1e-12)
+    for ch in range(x.shape[1]): # jeder Kanal separat prüfen
+        peak = float(np.max(np.abs(x[:, ch]))) # maximaler Absolutwert im Kanal
+        dbfs = 20.0 * np.log10(peak + 1e-12) # dBFS-Wert berechnen, 1e-12 verhindert log(0)
 
         print(
             f"CLIPPING CHECK Kanal {ch + 1}: "
             f"Peak={peak:.6f}, Peak={dbfs:.2f} dBFS"
         )
 
-        if peak >= limit:
+        if peak >= limit: # wenn der Peak den Grenzwert überschreitet, besteht Clipping-Gefahr
             raise ValueError(
                 f"Clipping-Gefahr auf Kanal {ch + 1}: "
                 f"Peak={peak:.6f} ({dbfs:.2f} dBFS). "
                 f"Generator-Spannung oder Focusrite-Gain reduzieren."
             )
+            

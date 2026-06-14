@@ -10,15 +10,15 @@ def update_voltage_from_amplitude(
     target_amp,
     measured_amp,
     min_voltage=0.01,
-    max_voltage=1.0,
+    max_voltage=1.0, # 1V ist die maximale Spannung, die der Generator liefern kann
 ):
-    correction = target_amp / (measured_amp + 1e-12)
-    new_voltage = voltage * correction
-    return max(min_voltage, min(new_voltage, max_voltage))
+    correction = target_amp / (measured_amp + 1e-12) # Ziel-Amplitude geteilt durch gemessene Amplitude
+    new_voltage = voltage * correction # neue Spannung berechnen
+    return max(min_voltage, min(new_voltage, max_voltage)) # neue Spannung auf erlaubten Bereich beschränken
 
 
 def amplitude_reached_target(measured_amp, target_amp, tolerance):
-    relative_error = (target_amp - measured_amp) / target_amp
+    relative_error = (target_amp - measured_amp) / target_amp # relativer Fehler berechnen
     return abs(relative_error) <= tolerance, relative_error
 
 
