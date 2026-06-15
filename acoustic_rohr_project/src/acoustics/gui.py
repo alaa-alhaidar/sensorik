@@ -65,10 +65,16 @@ SWEEP_START_FREQ = 350.0
 SWEEP_STOP_FREQ = 2050.0
 SWEEP_STEP_FREQ = 50.0
 
-TARGET_AMP = 0.15
+'''
+TARGET_AMP = 0.0002 V  = 0.2 mV  = 200 µV
+TARGET_AMP = 0.0150 V  = 15 mV   = 15000 µV
+TARGET_AMP = 0.1500 V  = 150 mV  = 150000 µV
+
+'''
+TARGET_AMP = 0.0002 # 0.0002 200 µV . In Labore 0,150 
 AMP_TOLERANCE = 0.05
 MAX_AUTO_STEPS = 10
-MIN_GENERATOR_VOLTAGE = 0.05
+MIN_GENERATOR_VOLTAGE = 0.05 # 0.05 50 mV
 MAX_GENERATOR_VOLTAGE = 2.0
 AUTO_STEP_PAUSE_SECONDS = 2.0
 
@@ -622,6 +628,18 @@ class AutomationAnalysisDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        top_layout = QHBoxLayout()
+        self.back_button = QPushButton("← Zurück")
+        self.back_button.setMaximumWidth(220)
+        self.back_button.clicked.connect(self._request_close)
+        top_layout.addWidget(self.back_button)
+        top_layout.addStretch()
+        self.voltage_data_button = QPushButton("Daten anzeigen")
+        self.voltage_data_button.setMaximumWidth(220)
+        self.voltage_data_button.clicked.connect(self.show_voltage_data_dialog)
+        top_layout.addWidget(self.voltage_data_button)
+        layout.addLayout(top_layout)
+
         ab_box = QGroupBox("Hinlaufende Welle über Frequenz")
         ab_box.setAlignment(Qt.AlignHCenter)
         ab_layout = QVBoxLayout(ab_box)
@@ -629,10 +647,31 @@ class AutomationAnalysisDialog(QDialog):
         self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [mV]")
         self.ab_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
         self.a_curve = self.ab_plot.plot(
-            [], [], pen=pg.mkPen("c", width=3), symbol="o", symbolSize=6,
+            [], [],
+            pen=pg.mkPen("r", width=3),
+            symbol="o",
+            symbolSize=6,
+            symbolBrush="r",
+            symbolPen=pg.mkPen("r"),
             name="|A(f)| hinlaufend"
         )
-    
+
+        self.tolerance_band = pg.LinearRegionItem(
+            values=(self.lower_tolerance_uv, self.upper_tolerance_uv),
+            orientation=pg.LinearRegionItem.Horizontal,
+            movable=False,
+            brush=pg.mkBrush(255, 235, 120, 90),
+            pen=pg.mkPen(230, 190, 0, width=1),
+        )
+        self.tolerance_band.setZValue(-10)
+        self.ab_plot.addItem(self.tolerance_band)
+        self.ab_plot.plot(
+            [],
+            [],
+            pen=pg.mkPen(230, 190, 0, width=8),
+            name=f"Toleranzbereich ±{self.tolerance * 100.0:.1f} %",
+        )
+
         self.target_line = pg.InfiniteLine(
             pos=self.target_amp_uv,
             angle=0,
@@ -673,6 +712,58 @@ class AutomationAnalysisDialog(QDialog):
                 [("U", self.voltages, " V")],
             ),
         )
+
+    def _request_close(self):
+        """Beendet die laufende Automation und schließt das Live-Fenster."""
+        parent = self.parent()
+        if parent is not None:
+            parent.sweep_cancel_requested = True
+        self.close()
+
+    def closeEvent(self, event):
+        parent = self.parent()
+        if parent is not None:
+            parent.sweep_cancel_requested = True
+        super().closeEvent(event)
+
+    def show_voltage_data_dialog(self):
+        if not self.frequencies or not self.voltages:
+            QMessageBox.information(
+                self,
+                "Keine Daten",
+                "Es sind noch keine Automation-Daten vorhanden.",
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Benötigte Spannung")
+        dialog.resize(520, 520)
+
+        layout = QVBoxLayout(dialog)
+
+        table = QTableWidget()
+        table.setColumnCount(2)
+        table.setRowCount(len(self.frequencies))
+        table.setHorizontalHeaderLabels(["Frequenz [Hz]", "Benötigte Spannung [V]"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        for row, (frequency, voltage) in enumerate(zip(self.frequencies, self.voltages)):
+            frequency_item = QTableWidgetItem(f"{float(frequency):.1f}")
+            voltage_item = QTableWidgetItem(f"{float(voltage):.4f}")
+            frequency_item.setTextAlignment(Qt.AlignCenter)
+            voltage_item.setTextAlignment(Qt.AlignCenter)
+            table.setItem(row, 0, frequency_item)
+            table.setItem(row, 1, voltage_item)
+
+        close_button = QPushButton("Schließen")
+        close_button.clicked.connect(dialog.close)
+
+        layout.addWidget(table)
+        layout.addWidget(close_button)
+        dialog.exec()
 
     @staticmethod
     def _style_plot(plot, xlabel, ylabel):
@@ -807,6 +898,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.b_abs_uv = []
         self.a_rms_dbuv = []
         self.b_rms_dbuv = []
+        self.frequency_items = []
         self.last_wave = None
         self.last_frequency = None
 
@@ -822,7 +914,10 @@ class FrequencyAnalysisDialog(QDialog):
         )
         top.addWidget(self.back_button)
         top.addStretch()
-        top.addWidget(self.status_label)
+        self.wave_data_button = QPushButton("Daten anzeigen")
+        self.wave_data_button.setMaximumWidth(220)
+        self.wave_data_button.clicked.connect(self.show_wave_data_dialog)
+        top.addWidget(self.wave_data_button)
         main_layout.addLayout(top)
 
         row_top = QHBoxLayout()
@@ -830,7 +925,7 @@ class FrequencyAnalysisDialog(QDialog):
 
         # Box 1: Reflexion und Dissipation gemeinsam
         self.rd_plot = self._make_plot(
-            "Reflexion und Dissipation über Frequenz",
+            "Reflexionsgrad und Dissipationsgrad über Frequenz",
             "Frequenz [Hz]",
             "R, D",
         )
@@ -929,6 +1024,119 @@ class FrequencyAnalysisDialog(QDialog):
         if parent is not None:
             parent.sweep_cancel_requested = True
         event.accept()
+
+    @staticmethod
+    def _format_complex(value):
+        value = complex(value)
+        sign = "+" if value.imag >= 0 else "-"
+        return f"{value.real:.6e} {sign} {abs(value.imag):.6e}j"
+
+    @staticmethod
+    def _format_complex_uv(value):
+        value = complex(value) * 1e6
+        sign = "+" if value.imag >= 0 else "-"
+        return f"{value.real:.3f} {sign} {abs(value.imag):.3f}j"
+
+    @staticmethod
+    def _format_swr(gamma):
+        gamma = float(gamma)
+        if gamma >= 1.0:
+            return "∞"
+        return f"{(1.0 + gamma) / (1.0 - gamma):.6f}"
+
+    def show_wave_data_dialog(self):
+        if not self.frequency_items:
+            QMessageBox.information(
+                self,
+                "Keine Daten",
+                "Es sind noch keine Analyse-Daten vorhanden.",
+            )
+            return
+
+        item = self.frequency_items[-1]
+        wave = item.get("wave")
+        if wave is None and item.get("step_results"):
+            wave = item["step_results"][-1].get("wave")
+        if wave is None:
+            QMessageBox.information(
+                self,
+                "Keine Daten",
+                "Für diese Analyse sind keine Wellen-Daten vorhanden.",
+            )
+            return
+
+        f0 = float(item.get("frequency", self.last_frequency or 0.0))
+        A = complex(wave["A"])
+        B = complex(wave["B"])
+        A_abs = float(wave["A_abs"])
+        B_abs = float(wave["B_abs"])
+        gamma = float(abs(wave.get("r_abs", item.get("B_over_A", B_abs / (A_abs + 1e-30)))))
+        R = float(wave.get("reflection_energy", gamma**2))
+        D = float(wave.get("dissipation", 1.0 - R))
+        residual = float(wave.get("residual", item.get("residual", 0.0)))
+        wavelength = SPEED_OF_SOUND / f0 if f0 > 0 else 0.0
+        wave_number = 2.0 * np.pi / wavelength if wavelength > 0 else 0.0
+        p_max = A_abs + B_abs
+        p_min = abs(A_abs - B_abs)
+
+        r_complex = wave.get("r_complex")
+        if r_complex is None:
+            r_complex = B / (A + 1e-30)
+        r_complex = complex(r_complex)
+
+        rows = [
+            ("Frequenz", f"{f0:.3f}", "Hz"),
+            ("A komplex", self._format_complex(A), "V"),
+            ("A komplex", self._format_complex_uv(A), "µV"),
+            ("A Betrag |A|", f"{A_abs * 1e6:.3f}", "µV"),
+            ("A Phase", f"{np.degrees(float(wave['A_phase'])):.3f}", "°"),
+            ("B komplex", self._format_complex(B), "V"),
+            ("B komplex", self._format_complex_uv(B), "µV"),
+            ("B Betrag |B|", f"{B_abs * 1e6:.3f}", "µV"),
+            ("B Phase", f"{np.degrees(float(wave['B_phase'])):.3f}", "°"),
+            ("r = B/A komplex", self._format_complex(r_complex), ""),
+            ("Reflexionsfaktor |r|", f"{gamma:.6f}", ""),
+            ("r Phase", f"{np.degrees(float(wave.get('r_phase', np.angle(r_complex)))):.3f}", "°"),
+            ("Reflexionsgrad R = |r|²", f"{R:.6f}", ""),
+            ("Reflexion", f"{R * 100.0:.3f}", "%"),
+            ("Dissipation D = 1 - R", f"{D:.6f}", ""),
+            ("Dissipation", f"{D * 100.0:.3f}", "%"),
+            ("SWR", self._format_swr(gamma), ""),
+            ("p_max = |A| + |B|", f"{p_max * 1e6:.3f}", "µV"),
+            ("p_min = ||A| - |B||", f"{p_min * 1e6:.3f}", "µV"),
+            ("Wellenlänge λ", f"{wavelength * 1000.0:.3f}", "mm"),
+            ("Wellenzahl k", f"{wave_number:.6f}", "rad/m"),
+            ("Residuum", f"{residual:.6e}", ""),
+        ]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Analyse-Daten")
+        dialog.resize(760, 720)
+
+        layout = QVBoxLayout(dialog)
+
+        table = QTableWidget()
+        table.setColumnCount(3)
+        table.setRowCount(len(rows))
+        table.setHorizontalHeaderLabels(["Messgröße", "Wert", "Einheit"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
+        for row, (name, value, unit) in enumerate(rows):
+            table.setItem(row, 0, QTableWidgetItem(name))
+            table.setItem(row, 1, QTableWidgetItem(value))
+            table.setItem(row, 2, QTableWidgetItem(unit))
+
+        close_button = QPushButton("Schließen")
+        close_button.clicked.connect(dialog.close)
+
+        layout.addWidget(table)
+        layout.addWidget(close_button)
+        dialog.exec()
 
     def _install_frequency_hover(self, plot, data_getter, value_suffix=""):
         """Zeigt beim Hover den nächstgelegenen Messpunkt mit seinen Werten."""
@@ -1148,6 +1356,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.b_abs_uv.clear()
         self.a_rms_dbuv.clear()
         self.b_rms_dbuv.clear()
+        self.frequency_items.clear()
         self.rms_x_mm = np.array([], dtype=float)
         self.current_a_rms_dbuv = None
         self.current_b_rms_dbuv = None
@@ -1184,6 +1393,7 @@ class FrequencyAnalysisDialog(QDialog):
         self.b_abs_uv.append(B_abs * 1e6)
         self.a_rms_dbuv.append(A_dbuv)
         self.b_rms_dbuv.append(B_dbuv)
+        self.frequency_items.append(item)
         self.current_a_rms_dbuv = float(A_dbuv)
         self.current_b_rms_dbuv = float(B_dbuv)
 
@@ -1370,21 +1580,26 @@ class FrequencyAnalysisDialog(QDialog):
 
         wavelength_mm = SPEED_OF_SOUND / f0 * 1000.0
         half_wavelength_mm = wavelength_mm / 2.0
-        peak_indices = np.flatnonzero(
-            (p_abs_uv[1:-1] >= p_abs_uv[:-2])
-            & (p_abs_uv[1:-1] >= p_abs_uv[2:])
+        min_indices = np.flatnonzero(
+            (p_abs_uv[1:-1] <= p_abs_uv[:-2])
+            & (p_abs_uv[1:-1] <= p_abs_uv[2:])
         ) + 1
-        if peak_indices.size >= 2:
+        if min_indices.size:
             plot_center_mm = float((x_mm[0] + x_mm[-1]) / 2.0)
-            peak_pairs = list(zip(peak_indices[:-1], peak_indices[1:]))
-            start_index, end_index = min(
-                peak_pairs,
-                key=lambda pair: abs(
-                    float((x_mm[pair[0]] + x_mm[pair[1]]) / 2.0) - plot_center_mm
-                ),
+            valid_min_indices = [
+                index
+                for index in min_indices
+                if float(x_mm[index]) + wavelength_mm <= float(x_mm[-1])
+            ]
+            if not valid_min_indices:
+                valid_min_indices = list(min_indices)
+
+            start_index = min(
+                valid_min_indices,
+                key=lambda index: abs(float(x_mm[index]) - plot_center_mm),
             )
             lambda_start_mm = float(x_mm[start_index])
-            lambda_end_mm = float(x_mm[end_index])
+            lambda_end_mm = min(lambda_start_mm + half_wavelength_mm, float(x_mm[-1]))
         else:
             visible_length_mm = float(x_mm[-1] - x_mm[0])
             lambda_line_length_mm = min(half_wavelength_mm, visible_length_mm)
@@ -1395,7 +1610,7 @@ class FrequencyAnalysisDialog(QDialog):
         lambda_y = max_uv * 0.78
         tick_height = max(max_uv * 0.04, 0.25)
 
-        lambda_pen = pg.mkPen("k", width=2)
+        lambda_pen = pg.mkPen("r", width=2)
         plot.plot([lambda_start_mm, lambda_end_mm], [lambda_y, lambda_y], pen=lambda_pen)
         plot.plot(
             [lambda_start_mm, lambda_start_mm],
@@ -1408,11 +1623,11 @@ class FrequencyAnalysisDialog(QDialog):
             pen=lambda_pen,
         )
         lambda_label = pg.TextItem(
-            f"Abstand der Maxima: λ/2 = {half_wavelength_mm:.1f} mm",
-            color="k",
-            anchor=(0.5, 1.8),
+            f"λ/2 = {half_wavelength_mm:.1f} mm",
+            color="r",
+            anchor=(0.5, 0.0),
         )
-        lambda_label.setPos(lambda_center_mm, lambda_y - tick_height * 1.8)
+        lambda_label.setPos(lambda_center_mm, lambda_y - tick_height * 1.4)
         plot.addItem(lambda_label)
 
         full_lambda_line_length_mm = min(wavelength_mm, float(x_mm[-1] - x_mm[0]))
@@ -1423,7 +1638,7 @@ class FrequencyAnalysisDialog(QDialog):
             full_lambda_start_mm = full_lambda_end_mm - full_lambda_line_length_mm
         full_lambda_center_mm = (full_lambda_start_mm + full_lambda_end_mm) / 2.0
         full_lambda_y = max_uv * 0.94
-        full_lambda_pen = pg.mkPen(80, 80, 80, width=2, style=Qt.DashLine)
+        full_lambda_pen = pg.mkPen("r", width=2, style=Qt.DashLine)
         plot.plot(
             [full_lambda_start_mm, full_lambda_end_mm],
             [full_lambda_y, full_lambda_y],
@@ -1441,10 +1656,10 @@ class FrequencyAnalysisDialog(QDialog):
         )
         full_lambda_label = pg.TextItem(
             f"λ = {wavelength_mm:.1f} mm",
-            color=(80, 80, 80),
-            anchor=(0.5, 1.2),
+            color="r",
+            anchor=(0.5, 0.0),
         )
-        full_lambda_label.setPos(full_lambda_center_mm, full_lambda_y - tick_height)
+        full_lambda_label.setPos(full_lambda_center_mm, full_lambda_y - tick_height * 1.4)
         plot.addItem(full_lambda_label)
 
         plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
@@ -1568,7 +1783,7 @@ class FrequencyAnalysisDialog(QDialog):
         plot.setYRange(y_min - 0.12 * y_span, y_max + 0.20 * y_span, padding=0)
 
 '''
-Die Klasse StartScreen ist das Hauptmenü der Anwendung, das drei große Buttons für die verschiedenen Funktionen bietet: "Automatische Messung",
+Die Klasse StartScreen ist das Hauptmenü der Anwendung, das große Buttons für die verschiedenen Funktionen bietet:
 "Signalgenerator" und "Signalanalyse".
 '''
 class StartScreen(QWidget):
@@ -1587,13 +1802,6 @@ class StartScreen(QWidget):
         layout.addWidget(title)
 
         layout.addStretch()
-
-        self.auto_button = QPushButton(
-            "Automatische Messung\n(Generator + Audio-Interface)"
-        )
-        self.auto_button.setMinimumHeight(80)
-        self.auto_button.setStyleSheet("font-size: 16px; font-weight: bold;")
-        layout.addWidget(self.auto_button)
 
         self.generator_button = QPushButton("Signalgenerator")
         self.generator_button.setMinimumHeight(80)
@@ -2182,7 +2390,7 @@ class SignalAnalysisScreen(QWidget):
 
         layout = QVBoxLayout()
 
-        plot = pg.PlotWidget(title="Reflexion und Dissipation über Frequenz")
+        plot = pg.PlotWidget(title="Reflexionsgrad und Dissipationsgrad über Frequenz")
         plot.setLabel("bottom", "Frequenz [Hz]")
         plot.setLabel("left", "R, Δ")
         plot.getAxis("bottom").enableAutoSIPrefix(False)
@@ -2818,7 +3026,6 @@ class MainWindow(QWidget):
         self.start_screen.signal_button.clicked.connect(lambda: self.stack.setCurrentIndex(2))
         self.generator_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
         self.signal_screen.back_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
-        self.start_screen.auto_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.signal_screen))
         self.signal_screen.auto_start_button.clicked.connect(self.run_automatic_measurement)
         self.signal_screen.sweep_button.clicked.connect(self.run_frequency_sweep)
 
