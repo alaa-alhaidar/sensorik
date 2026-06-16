@@ -72,7 +72,7 @@ TARGET_AMP = 0.1500 V  = 150 mV  = 150000 µV
 
 '''
 TARGET_AMP = 0.0002 # 0.0002 200 µV . In Labore 0,150 
-AMP_TOLERANCE = 0.05
+AMP_TOLERANCE = 0.01
 MAX_AUTO_STEPS = 10
 MIN_GENERATOR_VOLTAGE = 0.05 # 0.05 50 mV
 MAX_GENERATOR_VOLTAGE = 2.0
@@ -851,8 +851,10 @@ class AutomationAnalysisDialog(QDialog):
             x = np.asarray(frequencies, dtype=float)
             index = int(np.argmin(np.abs(x - mouse_point.x())))
             x_range = plot.getPlotItem().vb.viewRange()[0]
-            tolerance = max((x_range[1] - x_range[0]) * 0.025, 1.0)
-            if abs(x[index] - mouse_point.x()) > tolerance:
+            y_range = plot.getPlotItem().vb.viewRange()[1]
+            x_tolerance = max((x_range[1] - x_range[0]) * 0.015, 1.0)
+            y_tolerance = max((y_range[1] - y_range[0]) * 0.03, 1e-9)
+            if abs(x[index] - mouse_point.x()) > x_tolerance:
                 marker.setData([], [])
                 label.hide()
                 return
@@ -862,13 +864,24 @@ class AutomationAnalysisDialog(QDialog):
                 if index < len(data):
                     values.append((name, float(data[index]), suffix))
             if not values:
+                marker.setData([], [])
+                label.hide()
                 return
 
-            marker.setData([x[index]], [values[0][1]])
+            hover_value = min(
+                (value for _, value, _ in values),
+                key=lambda value: abs(value - mouse_point.y()),
+            )
+            if abs(hover_value - mouse_point.y()) > y_tolerance:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            marker.setData([x[index]], [hover_value])
             lines = [f"f = {x[index]:.1f} Hz"]
             lines.extend(f"{name} = {value:.4f}{suffix}" for name, value, suffix in values)
             label.setText("\n".join(lines))
-            label.setPos(x[index], values[0][1])
+            label.setPos(x[index], hover_value)
             label.show()
 
         plot.scene().sigMouseMoved.connect(on_mouse_moved)
@@ -1176,11 +1189,13 @@ class FrequencyAnalysisDialog(QDialog):
             index = int(np.argmin(np.abs(x - mouse_point.x())))
 
             # Nur anzeigen, wenn der Mauszeiger in der Nähe eines vorhandenen
-            # Frequenzpunktes liegt. Der Abstand wird aus der aktuellen
-            # sichtbaren x-Achse berechnet.
+            # Messpunktes liegt. Der Abstand wird aus der aktuellen Ansicht
+            # für x- und y-Achse berechnet.
             x_range = plot.getPlotItem().vb.viewRange()[0]
-            tolerance = max((x_range[1] - x_range[0]) * 0.025, 1.0)
-            if abs(x[index] - mouse_point.x()) > tolerance:
+            y_range = plot.getPlotItem().vb.viewRange()[1]
+            x_tolerance = max((x_range[1] - x_range[0]) * 0.015, 1.0)
+            y_tolerance = max((y_range[1] - y_range[0]) * 0.03, 1e-9)
+            if abs(x[index] - mouse_point.x()) > x_tolerance:
                 marker.setData([], [])
                 label.hide()
                 return
@@ -1195,16 +1210,23 @@ class FrequencyAnalysisDialog(QDialog):
                 label.hide()
                 return
 
-            # Marker sitzt auf dem Wert der ersten Kurve; im Text stehen
-            # sämtliche Werte dieses Frequenzpunktes.
-            marker.setData([x[index]], [values[0][1]])
+            hover_value = min(
+                (value for _, value in values),
+                key=lambda value: abs(value - mouse_point.y()),
+            )
+            if abs(hover_value - mouse_point.y()) > y_tolerance:
+                marker.setData([], [])
+                label.hide()
+                return
+
+            marker.setData([x[index]], [hover_value])
             lines = [f"f = {x[index]:.1f} Hz"]
             lines.extend(
                 f"{name} = {value:.3f}{value_suffix}"
                 for name, value in values
             )
             label.setText("\n".join(lines))
-            label.setPos(x[index], values[0][1])
+            label.setPos(x[index], hover_value)
             label.show()
 
         plot.scene().sigMouseMoved.connect(on_mouse_moved)
@@ -1258,7 +1280,25 @@ class FrequencyAnalysisDialog(QDialog):
             mouse_point = plot.getPlotItem().vb.mapSceneToView(scene_pos)
             x_min = float(self.rms_x_mm[0])
             x_max = float(self.rms_x_mm[-1])
-            x_pos = float(np.clip(mouse_point.x(), x_min, x_max))
+            if not (x_min <= mouse_point.x() <= x_max):
+                marker_a.setData([], [])
+                marker_b.setData([], [])
+                label.hide()
+                return
+
+            y_range = plot.getPlotItem().vb.viewRange()[1]
+            y_tolerance = max((y_range[1] - y_range[0]) * 0.03, 1e-9)
+            distances = [
+                abs(float(self.current_a_rms_dbuv) - mouse_point.y()),
+                abs(float(self.current_b_rms_dbuv) - mouse_point.y()),
+            ]
+            if min(distances) > y_tolerance:
+                marker_a.setData([], [])
+                marker_b.setData([], [])
+                label.hide()
+                return
+
+            x_pos = float(mouse_point.x())
 
             marker_a.setData([x_pos], [self.current_a_rms_dbuv])
             marker_b.setData([x_pos], [self.current_b_rms_dbuv])
