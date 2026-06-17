@@ -1,6 +1,8 @@
 import sys
+import json
 from pathlib import Path
 import time
+from datetime import datetime
 from types import SimpleNamespace
 import wave
 import sounddevice as sd
@@ -3151,10 +3153,20 @@ class MainWindow(QWidget):
                 )
 
             self.signal_screen.sweep_results = sweep_results
+            json_path = self._save_sweep_results_json(
+                sweep_results=sweep_results,
+                mode="frequency",
+                duration=duration,
+                start_voltage=start_voltage,
+            )
 
             self.signal_screen.log(
                 "Frequenzschleife abgeschlossen.",
                 category="title",
+            )
+            self.signal_screen.log(
+                f"Sweep-JSON gespeichert: {json_path}",
+                category="Info",
             )
 
         except Exception as e:
@@ -3167,6 +3179,128 @@ class MainWindow(QWidget):
                             self.signal_screen.current_f0 = f0
                     except ValueError:
                         pass
+
+    @staticmethod
+    def _complex_to_json(value):
+        value = complex(value)
+        return {
+            "real": float(value.real),
+            "imag": float(value.imag),
+            "abs": float(abs(value)),
+            "phase_rad": float(np.angle(value)),
+            "phase_deg": float(np.degrees(np.angle(value))),
+        }
+
+    @staticmethod
+    def _swr_from_reflection_factor(reflection_factor):
+        reflection_factor = float(reflection_factor)
+        if reflection_factor >= 1.0:
+            return None
+        return float((1.0 + reflection_factor) / (1.0 - reflection_factor))
+
+    def _build_sweep_frequency_json(self, item):
+        frequency = float(item["frequency"])
+        wave = item.get("wave")
+        if wave is None and item.get("step_results"):
+            wave = item["step_results"][-1].get("wave")
+        if wave is None:
+            raise ValueError(f"Keine Wellen-Daten für f = {frequency:.1f} Hz.")
+
+        A_abs = float(wave["A_abs"])
+        B_abs = float(wave["B_abs"])
+        reflection_factor = float(wave.get("r_abs", item.get("B_over_A", 0.0)))
+        reflection_energy = float(wave.get("reflection_energy", reflection_factor**2))
+        dissipation = float(wave.get("dissipation", 1.0 - reflection_energy))
+        wavelength = SPEED_OF_SOUND / frequency
+        wave_number = 2.0 * np.pi / wavelength
+
+        steps = []
+        for step in item.get("step_results", []):
+            step_wave = step.get("wave", {})
+            steps.append({
+                "step": int(step.get("step", len(steps) + 1)),
+                "generator_voltage_v": float(step.get("voltage", item.get("voltage", 0.0))),
+                "measured_A_abs_v": float(step.get("measured_A_abs", step_wave.get("A_abs", A_abs))),
+                "relative_error": float(step.get("relative_error", 0.0)),
+                "target_reached": bool(step.get("ok", item.get("target_reached", True))),
+            })
+
+        return {
+            "frequency_hz": frequency,
+            "generator_voltage_v": float(item.get("voltage", steps[-1]["generator_voltage_v"] if steps else 0.0)),
+            "A": self._complex_to_json(wave["A"]),
+            "B": self._complex_to_json(wave["B"]),
+            "A_abs_v": A_abs,
+            "A_abs_uv": A_abs * 1e6,
+            "A_phase_rad": float(wave["A_phase"]),
+            "A_phase_deg": float(np.degrees(float(wave["A_phase"]))),
+            "B_abs_v": B_abs,
+            "B_abs_uv": B_abs * 1e6,
+            "B_phase_rad": float(wave["B_phase"]),
+            "B_phase_deg": float(np.degrees(float(wave["B_phase"]))),
+            "r_complex": self._complex_to_json(wave.get("r_complex", complex(wave["B"]) / (complex(wave["A"]) + 1e-30))),
+            "reflection_factor_abs": reflection_factor,
+            "reflection_factor_phase_rad": float(wave.get("r_phase", 0.0)),
+            "reflection_factor_phase_deg": float(np.degrees(float(wave.get("r_phase", 0.0)))),
+            "swr": self._swr_from_reflection_factor(reflection_factor),
+            "reflection_energy_R": reflection_energy,
+            "reflection_percent": reflection_energy * 100.0,
+            "dissipation_D": dissipation,
+            "dissipation_percent": dissipation * 100.0,
+            "p_max_v": A_abs + B_abs,
+            "p_max_uv": (A_abs + B_abs) * 1e6,
+            "p_min_v": abs(A_abs - B_abs),
+            "p_min_uv": abs(A_abs - B_abs) * 1e6,
+            "wavelength_m": wavelength,
+            "wavelength_mm": wavelength * 1000.0,
+            "wave_number_rad_per_m": float(wave_number),
+            "residual": float(wave.get("residual", item.get("residual", 0.0))),
+            "target_reached": bool(item.get("target_reached", True)),
+            "steps": steps,
+        }
+
+    def _save_sweep_results_json(self, sweep_results, mode, duration, start_voltage):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_dir = Path(__file__).resolve().parents[2] / "sweep_exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        path = export_dir / f"{mode}_sweep_{timestamp}.json"
+
+        payload = {
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "mode": mode,
+            "purpose": "Referenzdaten für späteren Vergleich",
+            "settings": {
+                "duration_s": float(duration),
+                "start_voltage_v": float(start_voltage),
+                "sweep_start_freq_hz": float(SWEEP_START_FREQ),
+                "sweep_stop_freq_hz": float(SWEEP_STOP_FREQ),
+                "sweep_step_freq_hz": float(SWEEP_STEP_FREQ),
+                "target_amp_v": float(TARGET_AMP),
+                "amp_tolerance": float(AMP_TOLERANCE),
+                "min_generator_voltage_v": float(MIN_GENERATOR_VOLTAGE),
+                "max_generator_voltage_v": float(MAX_GENERATOR_VOLTAGE),
+                "max_auto_steps": int(MAX_AUTO_STEPS),
+            },
+            "constants": {
+                "speed_of_sound_m_per_s": float(SPEED_OF_SOUND),
+                "mic_positions_m": {
+                    "x1": float(MIC_X1),
+                    "x2": float(MIC_X2),
+                    "x3": float(MIC_X3),
+                },
+                "calibration": {str(key): float(value) for key, value in CALIBRATION.items()},
+                "num_channels": int(NUM_CHANNELS),
+            },
+            "frequencies": [
+                self._build_sweep_frequency_json(item)
+                for item in sweep_results
+            ],
+        }
+
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(payload, file, ensure_ascii=False, indent=2)
+
+        return path
             
     '''
         Die Funktion run_automatic_measurement führt eine automatische Messung durch, bei der die Generatorfrequenz und -spannung
@@ -3257,10 +3391,20 @@ class MainWindow(QWidget):
                 QApplication.processEvents()
 
             self.signal_screen.sweep_results = sweep_results
+            json_path = self._save_sweep_results_json(
+                sweep_results=sweep_results,
+                mode="automatic",
+                duration=duration,
+                start_voltage=start_voltage,
+            )
 
             self.signal_screen.log(
                 "Automatischer Frequenz-Sweep abgeschlossen.",
                 category="title",
+            )
+            self.signal_screen.log(
+                f"Sweep-JSON gespeichert: {json_path}",
+                category="Info",
             )
 
         except Exception as e:
