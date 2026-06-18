@@ -92,17 +92,17 @@ def run_auto_measurement_steps(
             min_voltage,
             max_voltage,
         )
-        # Wenn wir schon am Minimum sind und |A| trotzdem größer als Ziel ist,
-        # kann die Automation das Ziel nicht erreichen.
-        # Dann nicht 10-mal wiederholen.
-        if new_voltage <= min_voltage and measured_A_abs > target_amp:
-            voltage = new_voltage
-            break
 
-        # Nur abbrechen, wenn Spannung schon am Maximum ist
-        # UND das Signal trotzdem zu klein ist.
+        # Wenn |A| zu groß ist und die berechnete Spannung unter das Minimum fällt,
+        # dann nicht sofort abbrechen, sondern einmal mit Minimalspannung neu messen.
+        if new_voltage <= min_voltage and measured_A_abs > target_amp:
+            voltage = min_voltage
+            continue
+
+        # Wenn |A| zu klein ist und die berechnete Spannung am Maximum liegt,
+        # kann die Zielamplitude nicht erreicht werden.
         if new_voltage >= max_voltage and measured_A_abs < target_amp:
-            voltage = new_voltage
+            voltage = max_voltage
             break
 
         voltage = new_voltage

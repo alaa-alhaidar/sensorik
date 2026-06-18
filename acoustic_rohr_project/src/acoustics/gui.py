@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 from pathlib import Path
 import time
 from datetime import datetime
@@ -10,6 +11,8 @@ import sounddevice as sd
 
 
 import numpy as np
+
+os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 import pyqtgraph as pg
 
 from simulated_generator import SimulatedGenerator
@@ -42,6 +45,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
+    QFileDialog,
 )
 
 
@@ -73,11 +77,11 @@ TARGET_AMP = 0.0150 V  = 15 mV   = 15000 µV
 TARGET_AMP = 0.1500 V  = 150 mV  = 150000 µV
 
 '''
-TARGET_AMP = 0.0002 # 0.0002 200 µV . In Labore 0,150 
-AMP_TOLERANCE = 0.01
+TARGET_AMP = 0.050 # 0.0002 200 µV . In Labore 0,150 
+AMP_TOLERANCE = 0.010
 MAX_AUTO_STEPS = 10
 MIN_GENERATOR_VOLTAGE = 0.05 # 0.05 50 mV
-MAX_GENERATOR_VOLTAGE = 2.0
+MAX_GENERATOR_VOLTAGE = 1.0
 AUTO_STEP_PAUSE_SECONDS = 2.0
 
 NUM_CHANNELS = 3
@@ -86,7 +90,7 @@ NUM_CHANNELS = 3
 SOURCE_SIMULATION = "Simulation"
 SOURCE_SCARLETT = "Audio-Interface"
 
-USE_SIMULATED_GENERATOR = True   # Zuhause / Simulation
+USE_SIMULATED_GENERATOR = False   # Zuhause / Simulation
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
@@ -112,11 +116,11 @@ D = 0.64 → 64 % Energieverlust, 36 % Reflexion
 '''
 REFLECTION_FACTOR_SIM = 1.0  # harte Wand
 
-# bei 1000 Hz: 6.4 µV bei 0.2 V Generator-Spannung, BeI 2000 hZ und 500 hZ ist auch ungefähr 6.4 µV (6,4 1,5 1,8)
+# bei 1000 Hz: bei 0,5 V, |P1_ref| = 0.1248119 V 1000 hz, 0,5 volt
 CALIBRATION = {
     1: 1,
-    2: 1,
-    3: 1,
+    2: 0.9921,
+    3: 0.9617,
 }
 
 # format_voltage macht aus einem Spannungswert einen schön formatierten String mit Einheiten, z.B. 0.000123 → "123.000 µV"
@@ -777,6 +781,7 @@ class AutomationAnalysisDialog(QDialog):
             axis = plot.getAxis(axis_name)
             axis.setPen(pg.mkPen("k"))
             axis.setTextPen(pg.mkPen("k"))
+            axis.setTicks(None)
             axis.enableAutoSIPrefix(False)
 
     def clear_data(self):
@@ -914,6 +919,9 @@ class FrequencyAnalysisDialog(QDialog):
         self.a_rms_dbuv = []
         self.b_rms_dbuv = []
         self.frequency_items = []
+        self.reference_payload = None
+        self.reference_file_path = None
+        self.reference_targets_hz = [500.0, 1000.0, 1500.0, 2000.0]
         self.last_wave = None
         self.last_frequency = None
 
@@ -933,6 +941,18 @@ class FrequencyAnalysisDialog(QDialog):
         self.wave_data_button.setMaximumWidth(220)
         self.wave_data_button.clicked.connect(self.show_wave_data_dialog)
         top.addWidget(self.wave_data_button)
+        self.reference_plot_combo = QComboBox()
+        self.reference_plot_combo.addItems([
+            "Reflexion / Dissipation / SWR",
+            "A/B Amplituden",
+            "Stehende Welle",
+            "Generator-Spannung",
+            "Phasen",
+            "p_max / p_min",
+        ])
+        self.reference_plot_combo.currentTextChanged.connect(self._refresh_reference_plots)
+        self.reference_plot_combo.hide()
+        top.addWidget(self.reference_plot_combo)
         main_layout.addLayout(top)
 
         row_top = QHBoxLayout()
@@ -1058,6 +1078,259 @@ class FrequencyAnalysisDialog(QDialog):
         if gamma >= 1.0:
             return "∞"
         return f"{(1.0 + gamma) / (1.0 - gamma):.6f}"
+
+    @staticmethod
+    def _json_complex(data):
+        return complex(float(data["real"]), float(data["imag"]))
+
+    @staticmethod
+    def _json_value(item, key, default=0.0):
+        value = item.get(key, default)
+        if value is None:
+            return default
+        return float(value)
+
+    def set_reference_json_data(self, payload, file_path=None):
+        self.reference_payload = payload
+        self.reference_file_path = file_path
+        self.reference_plot_combo.show()
+        self.wave_data_button.hide()
+        self.status_label.setText("")
+        self._refresh_reference_plots()
+
+    def _nearest_reference_item(self, target_hz):
+        frequencies = self.reference_payload.get("frequencies", [])
+        if not frequencies:
+            return None
+        return min(
+            frequencies,
+            key=lambda item: abs(float(item.get("frequency_hz", 0.0)) - target_hz),
+        )
+
+    def _prepare_reference_plot(self, plot, title, xlabel, ylabel):
+        plot.clear()
+        self._add_bottom_right_legend(plot)
+        plot.setTitle(title, color="k")
+        plot.setLabel("bottom", xlabel, color="k")
+        plot.setLabel("left", ylabel, color="k")
+        plot.showGrid(x=True, y=True, alpha=0.25)
+        plot.setMouseEnabled(x=True, y=True)
+        for axis_name in ("bottom", "left"):
+            axis = plot.getAxis(axis_name)
+            axis.setPen(pg.mkPen("k"))
+            axis.setTextPen(pg.mkPen("k"))
+            axis.enableAutoSIPrefix(False)
+
+    def _refresh_reference_plots(self, *_args):
+        if self.reference_payload is None:
+            return
+
+        plots = [self.rd_plot, self.ab_plot, self.spatial_plot, self.rms_plot]
+        mode = self.reference_plot_combo.currentText()
+        for plot, target_hz in zip(plots, self.reference_targets_hz):
+            item = self._nearest_reference_item(target_hz)
+            if item is None:
+                continue
+            measured_hz = self._json_value(item, "frequency_hz")
+            if mode == "Reflexion / Dissipation / SWR":
+                self._plot_reference_reflection(plot, item, target_hz, measured_hz)
+            elif mode == "A/B Amplituden":
+                self._plot_reference_ab(plot, item, target_hz, measured_hz)
+            elif mode == "Stehende Welle":
+                self._plot_reference_standing_wave(plot, item, target_hz, measured_hz)
+            elif mode == "Generator-Spannung":
+                self._plot_reference_voltage(plot, item, target_hz, measured_hz)
+            elif mode == "Phasen":
+                self._plot_reference_phases(plot, item, target_hz, measured_hz)
+            elif mode == "p_max / p_min":
+                self._plot_reference_pressure_limits(plot, item, target_hz, measured_hz)
+
+    def _reference_title(self, name, target_hz, measured_hz):
+        return f"{name}: Soll {target_hz:.0f} Hz, JSON {measured_hz:.1f} Hz"
+
+    def _plot_reference_reflection(self, plot, item, target_hz, measured_hz):
+        R = self._json_value(item, "reflection_energy_R")
+        D = self._json_value(item, "dissipation_D")
+        swr = item.get("swr")
+        swr_text = "∞" if swr is None else f"{float(swr):.3f}"
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("Reflexion / Dissipation", target_hz, measured_hz),
+            "Wert",
+            "",
+        )
+        plot.addItem(pg.BarGraphItem(x=[R / 2.0], y=[1.0], width=R, height=0.45, brush=pg.mkBrush("b")))
+        plot.addItem(pg.BarGraphItem(x=[D / 2.0], y=[0.0], width=D, height=0.45, brush=pg.mkBrush("r")))
+        plot.plot([R], [1.0], pen=None, symbol="o", symbolBrush="b", name=f"R = {R:.3f}")
+        plot.plot([D], [0.0], pen=None, symbol="o", symbolBrush="r", name=f"D = {D:.3f}")
+        plot.plot([], [], pen=None, symbol="o", symbolBrush=pg.mkBrush(255, 170, 0), name=f"SWR = {swr_text}")
+        plot.getAxis("left").setTicks([[(1.0, "R"), (0.0, "D")]])
+        plot.setXRange(0.0, max(1.0, R, D) * 1.15, padding=0.03)
+        plot.setYRange(-0.7, 1.7, padding=0)
+
+    def _plot_reference_ab(self, plot, item, target_hz, measured_hz):
+        A_uv = self._json_value(item, "A_abs_uv")
+        B_uv = self._json_value(item, "B_abs_uv")
+        max_uv = max(A_uv, B_uv, 1.0)
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("A/B Amplituden", target_hz, measured_hz),
+            "Amplitude [µV]",
+            "",
+        )
+        plot.addItem(pg.BarGraphItem(x=[A_uv / 2.0], y=[1.0], width=A_uv, height=0.45, brush=pg.mkBrush("c")))
+        plot.addItem(pg.BarGraphItem(x=[B_uv / 2.0], y=[0.0], width=B_uv, height=0.45, brush=pg.mkBrush("m")))
+        plot.plot([A_uv], [1.0], pen=None, symbol="o", symbolBrush="c", name=f"|A| = {A_uv:.3f} µV")
+        plot.plot([B_uv], [0.0], pen=None, symbol="o", symbolBrush="m", name=f"|B| = {B_uv:.3f} µV")
+        plot.getAxis("left").setTicks([[(1.0, "|A|"), (0.0, "|B|")]])
+        plot.setXRange(0.0, max_uv * 1.15, padding=0)
+        plot.setYRange(-0.7, 1.7, padding=0)
+
+    def _add_wavelength_markers(self, plot, x_mm, p_abs_uv, wavelength_mm):
+        max_uv = float(np.max(p_abs_uv))
+        half_wavelength_mm = wavelength_mm / 2.0
+        min_indices = np.flatnonzero(
+            (p_abs_uv[1:-1] <= p_abs_uv[:-2])
+            & (p_abs_uv[1:-1] <= p_abs_uv[2:])
+        ) + 1
+        if min_indices.size:
+            plot_center_mm = float((x_mm[0] + x_mm[-1]) / 2.0)
+            valid_min_indices = [
+                index
+                for index in min_indices
+                if float(x_mm[index]) + wavelength_mm <= float(x_mm[-1])
+            ]
+            if not valid_min_indices:
+                valid_min_indices = list(min_indices)
+
+            start_index = min(
+                valid_min_indices,
+                key=lambda index: abs(float(x_mm[index]) - plot_center_mm),
+            )
+            lambda_start_mm = float(x_mm[start_index])
+            lambda_end_mm = min(lambda_start_mm + half_wavelength_mm, float(x_mm[-1]))
+        else:
+            visible_length_mm = float(x_mm[-1] - x_mm[0])
+            lambda_line_length_mm = min(half_wavelength_mm, visible_length_mm)
+            lambda_center_mm = float((x_mm[0] + x_mm[-1]) / 2.0)
+            lambda_start_mm = lambda_center_mm - lambda_line_length_mm / 2.0
+            lambda_end_mm = lambda_center_mm + lambda_line_length_mm / 2.0
+
+        lambda_center_mm = (lambda_start_mm + lambda_end_mm) / 2.0
+        lambda_y = max_uv * 0.78
+        tick_height = max(max_uv * 0.04, 0.25)
+
+        lambda_pen = pg.mkPen("r", width=2)
+        plot.plot([lambda_start_mm, lambda_end_mm], [lambda_y, lambda_y], pen=lambda_pen)
+        plot.plot([lambda_start_mm, lambda_start_mm], [lambda_y - tick_height, lambda_y + tick_height], pen=lambda_pen)
+        plot.plot([lambda_end_mm, lambda_end_mm], [lambda_y - tick_height, lambda_y + tick_height], pen=lambda_pen)
+        lambda_label = pg.TextItem(
+            f"λ/2 = {half_wavelength_mm:.1f} mm",
+            color="r",
+            anchor=(0.5, 0.0),
+        )
+        lambda_label.setPos(lambda_center_mm, lambda_y - tick_height * 1.4)
+        plot.addItem(lambda_label)
+
+        full_lambda_line_length_mm = min(wavelength_mm, float(x_mm[-1] - x_mm[0]))
+        full_lambda_start_mm = lambda_start_mm
+        full_lambda_end_mm = full_lambda_start_mm + full_lambda_line_length_mm
+        if full_lambda_end_mm > float(x_mm[-1]):
+            full_lambda_end_mm = float(x_mm[-1])
+            full_lambda_start_mm = full_lambda_end_mm - full_lambda_line_length_mm
+        full_lambda_center_mm = (full_lambda_start_mm + full_lambda_end_mm) / 2.0
+        full_lambda_y = max_uv * 0.94
+        full_lambda_pen = pg.mkPen("r", width=2, style=Qt.DashLine)
+        plot.plot([full_lambda_start_mm, full_lambda_end_mm], [full_lambda_y, full_lambda_y], pen=full_lambda_pen)
+        plot.plot([full_lambda_start_mm, full_lambda_start_mm], [full_lambda_y - tick_height, full_lambda_y + tick_height], pen=full_lambda_pen)
+        plot.plot([full_lambda_end_mm, full_lambda_end_mm], [full_lambda_y - tick_height, full_lambda_y + tick_height], pen=full_lambda_pen)
+        full_lambda_label = pg.TextItem(
+            f"λ = {wavelength_mm:.1f} mm",
+            color="r",
+            anchor=(0.5, 0.0),
+        )
+        full_lambda_label.setPos(full_lambda_center_mm, full_lambda_y - tick_height * 1.4)
+        plot.addItem(full_lambda_label)
+
+    def _plot_reference_standing_wave(self, plot, item, target_hz, measured_hz):
+        A = self._json_complex(item["A"])
+        B = self._json_complex(item["B"])
+        speed = float(
+            self.reference_payload.get("constants", {}).get(
+                "speed_of_sound_m_per_s",
+                SPEED_OF_SOUND,
+            )
+        )
+        k = 2.0 * np.pi * measured_hz / speed
+        x = np.linspace(-0.8, 0.0, 1000)
+        x_mm = x * 1000.0
+        p_abs_uv = np.abs(A * np.exp(-1j * k * x) + B * np.exp(1j * k * x)) * 1e6
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("Stehende Welle", target_hz, measured_hz),
+            "Rohrposition x [mm]",
+            "|P(x)| [µV]",
+        )
+        plot.plot(x_mm, p_abs_uv, pen=pg.mkPen(0, 90, 220, width=3), name="|P(x)|")
+        plot.plot(x_mm, np.ones_like(x_mm) * np.max(p_abs_uv), pen=pg.mkPen("r", width=2, style=Qt.DashLine), name=f"p_max = {np.max(p_abs_uv):.3f} µV")
+        plot.plot(x_mm, np.ones_like(x_mm) * np.min(p_abs_uv), pen=pg.mkPen("g", width=2, style=Qt.DashLine), name=f"p_min = {np.min(p_abs_uv):.3f} µV")
+        self._add_wavelength_markers(plot, x_mm, p_abs_uv, speed / measured_hz * 1000.0)
+        plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
+        plot.setYRange(0.0, max(float(np.max(p_abs_uv)) * 1.15, 1.0), padding=0)
+
+    def _plot_reference_voltage(self, plot, item, target_hz, measured_hz):
+        voltage = self._json_value(item, "generator_voltage_v")
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("Generator-Spannung", target_hz, measured_hz),
+            "Spannung [V]",
+            "",
+        )
+        plot.addItem(pg.BarGraphItem(x=[voltage / 2.0], y=[0.0], width=voltage, height=0.55, brush=pg.mkBrush("b")))
+        plot.plot([voltage], [0.0], pen=None, symbol="o", symbolBrush="b", name=f"U = {voltage:.4f} V")
+        plot.getAxis("left").setTicks([[(0.0, "U")]])
+        plot.setXRange(0.0, max(voltage * 1.25, 0.1), padding=0)
+        plot.setYRange(-0.8, 0.8, padding=0)
+
+    def _plot_reference_phases(self, plot, item, target_hz, measured_hz):
+        A_phase = self._json_value(item, "A_phase_deg")
+        B_phase = self._json_value(item, "B_phase_deg")
+        r_phase = self._json_value(item, "reflection_factor_phase_deg")
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("Phasen", target_hz, measured_hz),
+            "Phase [°]",
+            "",
+        )
+        phases = [A_phase, B_phase, r_phase]
+        labels = ["A", "B", "r"]
+        colors = ["c", "m", "y"]
+        for y_pos, value, label, color in zip([2.0, 1.0, 0.0], phases, labels, colors):
+            plot.addItem(pg.BarGraphItem(x=[value / 2.0], y=[y_pos], width=abs(value), height=0.45, brush=pg.mkBrush(color)))
+            plot.plot([value], [y_pos], pen=None, symbol="o", symbolBrush=color, name=f"{label} = {value:.2f}°")
+        plot.getAxis("left").setTicks([[(2.0, "A"), (1.0, "B"), (0.0, "r")]])
+        min_x = min(-180.0, min(phases) * 1.15)
+        max_x = max(180.0, max(phases) * 1.15)
+        plot.setXRange(min_x, max_x, padding=0)
+        plot.setYRange(-0.7, 2.7, padding=0)
+
+    def _plot_reference_pressure_limits(self, plot, item, target_hz, measured_hz):
+        p_max = self._json_value(item, "p_max_uv")
+        p_min = self._json_value(item, "p_min_uv")
+        max_uv = max(p_max, p_min, 1.0)
+        self._prepare_reference_plot(
+            plot,
+            self._reference_title("p_max / p_min", target_hz, measured_hz),
+            "Amplitude [µV]",
+            "",
+        )
+        plot.addItem(pg.BarGraphItem(x=[p_max / 2.0], y=[1.0], width=p_max, height=0.45, brush=pg.mkBrush("r")))
+        plot.addItem(pg.BarGraphItem(x=[p_min / 2.0], y=[0.0], width=p_min, height=0.45, brush=pg.mkBrush("g")))
+        plot.plot([p_max], [1.0], pen=None, symbol="o", symbolBrush="r", name=f"p_max = {p_max:.3f} µV")
+        plot.plot([p_min], [0.0], pen=None, symbol="o", symbolBrush="g", name=f"p_min = {p_min:.3f} µV")
+        plot.getAxis("left").setTicks([[(1.0, "p_max"), (0.0, "p_min")]])
+        plot.setXRange(0.0, max_uv * 1.15, padding=0)
+        plot.setYRange(-0.7, 1.7, padding=0)
 
     def show_wave_data_dialog(self):
         if not self.frequency_items:
@@ -2156,6 +2429,7 @@ class SignalAnalysisScreen(QWidget):
         self.show_results_button = QPushButton("Komplexspektrum anzeigen")
         self.auto_start_button = QPushButton("⚙ Automation")
         self.sweep_button = QPushButton("↻ Frequenzschleife")
+        self.json_analysis_button = QPushButton("JSON Analyse")
     
 
         row3.addWidget(self.audio_start_button)
@@ -2165,6 +2439,7 @@ class SignalAnalysisScreen(QWidget):
         row3.addWidget(self.show_results_button)
         row3.addWidget(self.auto_start_button)
         row3.addWidget(self.sweep_button)
+        row3.addWidget(self.json_analysis_button)
         
 
         group_layout.addLayout(row1)
@@ -2219,6 +2494,7 @@ class SignalAnalysisScreen(QWidget):
         self.sample_rate_combo.currentTextChanged.connect(self.refresh_time_axis_only)
         self.show_log_button.clicked.connect(self.show_log_window)
         self.show_results_button.clicked.connect(self.show_results_window)
+        self.json_analysis_button.clicked.connect(self.show_json_analysis_window)
         self.measurement_duration_edit.editingFinished.connect(self.refresh_time_axis_only)
 
 
@@ -2240,6 +2516,34 @@ class SignalAnalysisScreen(QWidget):
         self.wave_dialog.show()
         self.wave_dialog.raise_()
         self.wave_dialog.activateWindow()
+
+    def show_json_analysis_window(self):
+        export_dir = Path(__file__).resolve().parents[2] / "sweep_exports"
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Sweep-JSON auswählen",
+            str(export_dir),
+            "JSON-Dateien (*.json)",
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                payload = json.load(file)
+
+            if not payload.get("frequencies"):
+                raise ValueError("Die JSON-Datei enthält keine Frequenzdaten.")
+
+            self.frequency_analysis_dialog = FrequencyAnalysisDialog(parent=self)
+            self.frequency_analysis_dialog.set_reference_json_data(payload, file_path)
+            self.frequency_analysis_dialog.setWindowTitle("Live-Wellenanalyse aus JSON")
+            self.frequency_analysis_dialog.show()
+            self.frequency_analysis_dialog.raise_()
+            self.frequency_analysis_dialog.activateWindow()
+
+        except Exception as e:
+            QMessageBox.critical(self, "JSON-Fehler", str(e))
 
     def prepare_automation_dashboard(self):
         """Öffnet die Live-Anzeige für den automatischen Frequenz-Sweep."""
@@ -2286,7 +2590,10 @@ class SignalAnalysisScreen(QWidget):
 
     def prepare_live_frequency_dashboard(self):
         """Wird ausschließlich beim Klick auf Frequenzschleife aufgerufen."""
-        if self.frequency_analysis_dialog is None:
+        if (
+            self.frequency_analysis_dialog is None
+            or self.frequency_analysis_dialog.reference_payload is not None
+        ):
             self.frequency_analysis_dialog = FrequencyAnalysisDialog(parent=self)
 
         self.sweep_cancel_requested = False

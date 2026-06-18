@@ -1,0 +1,2039 @@
+{
+  "created_at": "2026-06-18T11:13:33",
+  "mode": "automatic",
+  "purpose": "Referenzdaten für späteren Vergleich",
+  "settings": {
+    "duration_s": 1.0,
+    "start_voltage_v": 0.05,
+    "sweep_start_freq_hz": 350.0,
+    "sweep_stop_freq_hz": 2050.0,
+    "sweep_step_freq_hz": 50.0,
+    "target_amp_v": 0.0002,
+    "amp_tolerance": 0.01,
+    "min_generator_voltage_v": 0.05,
+    "max_generator_voltage_v": 1.5,
+    "max_auto_steps": 10
+  },
+  "constants": {
+    "speed_of_sound_m_per_s": 344.0,
+    "mic_positions_m": {
+      "x1": -0.145,
+      "x2": -0.085,
+      "x3": -0.05
+    },
+    "calibration": {
+      "1": 1.0,
+      "2": 0.9921,
+      "3": 0.9617
+    },
+    "num_channels": 3
+  },
+  "frequencies": [
+    {
+      "frequency_hz": 350.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0072726568497222385,
+        "imag": 0.011034088786929415,
+        "abs": 0.013215243206678159,
+        "phase_rad": 2.1535477775119345,
+        "phase_deg": 123.38919863121227
+      },
+      "B": {
+        "real": -0.007059608170422561,
+        "imag": 0.01021749974792279,
+        "abs": 0.012419153297173652,
+        "phase_rad": 2.1754111280480948,
+        "phase_deg": 124.64187634294933
+      },
+      "A_abs_v": 0.013215243206678159,
+      "A_abs_uv": 13215.243206678158,
+      "A_phase_rad": 2.1535477775119345,
+      "A_phase_deg": 123.38919863121227,
+      "B_abs_v": 0.012419153297173654,
+      "B_abs_uv": 12419.153297173654,
+      "B_phase_rad": 2.1754111280480948,
+      "B_phase_deg": 124.64187634294933,
+      "r_complex": {
+        "real": 0.9395351266510998,
+        "imag": 0.02054465941014721,
+        "abs": 0.9397597231428771,
+        "phase_rad": 0.021863350536160085,
+        "phase_deg": 1.2526777117370584
+      },
+      "reflection_factor_abs": 0.9397597231428774,
+      "reflection_factor_phase_rad": 0.021863350536160085,
+      "reflection_factor_phase_deg": 1.2526777117370584,
+      "swr": 32.20037862282045,
+      "reflection_energy_R": 0.8831483372415775,
+      "reflection_percent": 88.31483372415775,
+      "dissipation_D": 0.11685166275842251,
+      "dissipation_percent": 11.685166275842251,
+      "p_max_v": 0.02563439650385181,
+      "p_max_uv": 25634.39650385181,
+      "p_min_v": 0.0007960899095045045,
+      "p_min_uv": 796.0899095045045,
+      "wavelength_m": 0.9828571428571429,
+      "wavelength_mm": 982.8571428571429,
+      "wave_number_rad_per_m": 6.392775748583881,
+      "residual": 0.0009826049157234632,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.013215243206678159,
+          "relative_error": -65.07621603339079,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 400.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.027556385291221935,
+        "imag": -0.03577076677223397,
+        "abs": 0.04515420385514322,
+        "phase_rad": -2.227201313625427,
+        "phase_deg": -127.60923539672977
+      },
+      "B": {
+        "real": -0.025663104736184515,
+        "imag": -0.03421984021714004,
+        "abs": 0.04277373503900461,
+        "phase_rad": -2.214264229665542,
+        "phase_deg": -126.86799508662199
+      },
+      "A_abs_v": 0.04515420385514322,
+      "A_abs_uv": 45154.20385514322,
+      "A_phase_rad": -2.227201313625427,
+      "A_phase_deg": -127.60923539672977,
+      "B_abs_v": 0.04277373503900462,
+      "B_abs_uv": 42773.73503900462,
+      "B_phase_rad": -2.214264229665542,
+      "B_phase_deg": -126.86799508662199,
+      "r_complex": {
+        "real": 0.9472020754893709,
+        "imag": 0.012254716468251194,
+        "abs": 0.9472813467429246,
+        "phase_rad": 0.012937083959884792,
+        "phase_deg": 0.741240310107793
+      },
+      "reflection_factor_abs": 0.9472813467429245,
+      "reflection_factor_phase_rad": 0.012937083959884792,
+      "reflection_factor_phase_deg": 0.741240310107793,
+      "swr": 36.93723618559197,
+      "reflection_energy_R": 0.8973419498870888,
+      "reflection_percent": 89.73419498870888,
+      "dissipation_D": 0.10265805011291118,
+      "dissipation_percent": 10.265805011291118,
+      "p_max_v": 0.08792793889414784,
+      "p_max_uv": 87927.93889414784,
+      "p_min_v": 0.002380468816138598,
+      "p_min_uv": 2380.468816138598,
+      "wavelength_m": 0.86,
+      "wavelength_mm": 860.0,
+      "wave_number_rad_per_m": 7.306029426953008,
+      "residual": 0.0032216210588800983,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.04515420385514322,
+          "relative_error": -224.77101927571607,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 450.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0014258279084987408,
+        "imag": -0.03170857337746169,
+        "abs": 0.031740614531834854,
+        "phase_rad": -1.5258599605800254,
+        "phase_deg": -87.42533586923362
+      },
+      "B": {
+        "real": 0.0015351361181735954,
+        "imag": -0.030258447318576222,
+        "abs": 0.030297364192820034,
+        "phase_rad": -1.5201056548639962,
+        "phase_deg": -87.09563843767714
+      },
+      "A_abs_v": 0.031740614531834854,
+      "A_abs_uv": 31740.614531834854,
+      "A_phase_rad": -1.5258599605800254,
+      "A_phase_deg": -87.42533586923362,
+      "B_abs_v": 0.030297364192820038,
+      "B_abs_uv": 30297.364192820038,
+      "B_phase_rad": -1.5201056548639962,
+      "B_phase_deg": -87.09563843767714,
+      "r_complex": {
+        "real": 0.9545140520243087,
+        "imag": 0.005492626289737501,
+        "abs": 0.9545298551933424,
+        "phase_rad": 0.005754305716029217,
+        "phase_deg": 0.32969743155647935
+      },
+      "reflection_factor_abs": 0.9545298551933424,
+      "reflection_factor_phase_rad": 0.005754305716029217,
+      "reflection_factor_phase_deg": 0.32969743155647935,
+      "swr": 42.98490500754173,
+      "reflection_energy_R": 0.9111272444554233,
+      "reflection_percent": 91.11272444554233,
+      "dissipation_D": 0.08887275554457674,
+      "dissipation_percent": 8.887275554457673,
+      "p_max_v": 0.06203797872465489,
+      "p_max_uv": 62037.978724654895,
+      "p_min_v": 0.0014432503390148163,
+      "p_min_uv": 1443.2503390148163,
+      "wavelength_m": 0.7644444444444445,
+      "wavelength_mm": 764.4444444444445,
+      "wave_number_rad_per_m": 8.219283105322132,
+      "residual": 0.002157125147713074,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.031740614531834854,
+          "relative_error": -157.70307265917427,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 500.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.01232439892855294,
+        "imag": 0.007829822375641381,
+        "abs": 0.014601264581679605,
+        "phase_rad": 0.5659794093404841,
+        "phase_deg": 32.42823144651694
+      },
+      "B": {
+        "real": 0.011851356494430492,
+        "imag": 0.007531845149714361,
+        "abs": 0.014042198621204427,
+        "phase_rad": 0.5661327890402923,
+        "phase_deg": 32.437019455978934
+      },
+      "A_abs_v": 0.014601264581679603,
+      "A_abs_uv": 14601.264581679603,
+      "A_phase_rad": 0.5659794093404841,
+      "A_phase_deg": 32.42823144651694,
+      "B_abs_v": 0.01404219862120443,
+      "B_abs_uv": 14042.19862120443,
+      "B_phase_rad": 0.5661327890402923,
+      "B_phase_deg": 32.437019455978934,
+      "r_complex": {
+        "real": 0.961711116011805,
+        "imag": 0.00014750696343291387,
+        "abs": 0.9617111273240919,
+        "phase_rad": 0.00015337969980830132,
+        "phase_deg": 0.008788009461999188
+      },
+      "reflection_factor_abs": 0.961711127324092,
+      "reflection_factor_phase_rad": 0.00015337969980830132,
+      "reflection_factor_phase_deg": 0.008788009461999188,
+      "swr": 51.23449687142225,
+      "reflection_energy_R": 0.924888292418976,
+      "reflection_percent": 92.48882924189759,
+      "dissipation_D": 0.07511170758102403,
+      "dissipation_percent": 7.511170758102404,
+      "p_max_v": 0.028643463202884033,
+      "p_max_uv": 28643.463202884035,
+      "p_min_v": 0.0005590659604751726,
+      "p_min_uv": 559.0659604751726,
+      "wavelength_m": 0.688,
+      "wavelength_mm": 688.0,
+      "wave_number_rad_per_m": 9.13253678369126,
+      "residual": 0.0009362616490694114,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.014601264581679603,
+          "relative_error": -72.006322908398,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 550.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.010631046435223116,
+        "imag": 0.00011500560053723856,
+        "abs": 0.010631668476585652,
+        "phase_rad": 3.1307751752445774,
+        "phase_deg": 179.38020414584497
+      },
+      "B": {
+        "real": -0.0103001740346463,
+        "imag": 0.0001584146815915271,
+        "abs": 0.010301392156177027,
+        "phase_rad": 3.1262140597481975,
+        "phase_deg": 179.11887147803068
+      },
+      "A_abs_v": 0.010631668476585652,
+      "A_abs_uv": 10631.668476585652,
+      "A_phase_rad": 3.1307751752445774,
+      "A_phase_deg": 179.38020414584497,
+      "B_abs_v": 0.010301392156177027,
+      "B_abs_uv": 10301.392156177028,
+      "B_phase_rad": 3.1262140597481975,
+      "B_phase_deg": 179.11887147803068,
+      "r_complex": {
+        "real": 0.9689245883775852,
+        "imag": -0.004419407601701457,
+        "abs": 0.9689346671093066,
+        "phase_rad": -0.004561115496379836,
+        "phase_deg": -0.2613326678142821
+      },
+      "reflection_factor_abs": 0.9689346671093066,
+      "reflection_factor_phase_rad": -0.004561115496379836,
+      "reflection_factor_phase_deg": -0.2613326678142821,
+      "swr": 63.3804464300193,
+      "reflection_energy_R": 0.9388343891262229,
+      "reflection_percent": 93.88343891262228,
+      "dissipation_D": 0.06116561087377714,
+      "dissipation_percent": 6.116561087377715,
+      "p_max_v": 0.02093306063276268,
+      "p_max_uv": 20933.060632762677,
+      "p_min_v": 0.0003302763204086241,
+      "p_min_uv": 330.27632040862414,
+      "wavelength_m": 0.6254545454545455,
+      "wavelength_mm": 625.4545454545455,
+      "wave_number_rad_per_m": 10.045790462060385,
+      "residual": 0.0006381111689201628,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.010631668476585652,
+          "relative_error": -52.158342382928254,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 600.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.008981385061984712,
+        "imag": -0.011910913153741282,
+        "abs": 0.014917611396856042,
+        "phase_rad": -0.9247103403521177,
+        "phase_deg": -52.98199977428225
+      },
+      "B": {
+        "real": 0.008666867165926285,
+        "imag": -0.011696711628309889,
+        "abs": 0.014557735036318353,
+        "phase_rad": -0.9331020086250198,
+        "phase_deg": -53.462806949393375
+      },
+      "A_abs_v": 0.01491761139685604,
+      "A_abs_uv": 14917.61139685604,
+      "A_phase_rad": -0.9247103403521177,
+      "A_phase_deg": -52.98199977428225,
+      "B_abs_v": 0.014557735036318352,
+      "B_abs_uv": 14557.735036318352,
+      "B_phase_rad": -0.9331020086250198,
+      "B_phase_deg": -53.462806949393375,
+      "r_complex": {
+        "real": 0.9758413779193904,
+        "imag": -0.008189129357799836,
+        "abs": 0.9758757383495367,
+        "phase_rad": -0.008391668272901996,
+        "phase_deg": -0.4808071751111211
+      },
+      "reflection_factor_abs": 0.9758757383495367,
+      "reflection_factor_phase_rad": -0.008391668272901996,
+      "reflection_factor_phase_deg": -0.4808071751111211,
+      "swr": 81.90409169731369,
+      "reflection_energy_R": 0.9523334566992534,
+      "reflection_percent": 95.23334566992534,
+      "dissipation_D": 0.0476665433007466,
+      "dissipation_percent": 4.76665433007466,
+      "p_max_v": 0.02947534643317439,
+      "p_max_uv": 29475.346433174393,
+      "p_min_v": 0.00035987636053768854,
+      "p_min_uv": 359.8763605376885,
+      "wavelength_m": 0.5733333333333334,
+      "wavelength_mm": 573.3333333333334,
+      "wave_number_rad_per_m": 10.95904414042951,
+      "residual": 0.000831831804314661,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.01491761139685604,
+          "relative_error": -73.5880569842802,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 650.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.04797128841383738,
+        "imag": 0.001854906238049188,
+        "abs": 0.048007136857299904,
+        "phase_rad": 3.1029448982116032,
+        "phase_deg": 177.78564672917568
+      },
+      "B": {
+        "real": -0.04709551711980581,
+        "imag": 0.002364641727629388,
+        "abs": 0.04715484347638074,
+        "phase_rad": 3.0914252960365753,
+        "phase_deg": 177.12562214287686
+      },
+      "A_abs_v": 0.0480071368572999,
+      "A_abs_uv": 48007.1368572999,
+      "A_phase_rad": 3.1029448982116032,
+      "A_phase_deg": 177.78564672917568,
+      "B_abs_v": 0.04715484347638075,
+      "B_abs_uv": 47154.84347638075,
+      "B_phase_rad": 3.0914252960365753,
+      "B_phase_deg": 177.12562214287686,
+      "r_complex": {
+        "real": 0.9821813556215924,
+        "imag": -0.011314838982617793,
+        "abs": 0.9822465275641709,
+        "phase_rad": -0.01151960217502799,
+        "phase_deg": -0.6600245862988273
+      },
+      "reflection_factor_abs": 0.9822465275641709,
+      "reflection_factor_phase_rad": -0.01151960217502799,
+      "reflection_factor_phase_deg": -0.6600245862988273,
+      "swr": 111.65401781139464,
+      "reflection_energy_R": 0.9648082409118715,
+      "reflection_percent": 96.48082409118715,
+      "dissipation_D": 0.03519175908812855,
+      "dissipation_percent": 3.519175908812855,
+      "p_max_v": 0.09516198033368065,
+      "p_max_uv": 95161.98033368065,
+      "p_min_v": 0.0008522933809191474,
+      "p_min_uv": 852.2933809191475,
+      "wavelength_m": 0.5292307692307693,
+      "wavelength_mm": 529.2307692307693,
+      "wave_number_rad_per_m": 11.872297818798636,
+      "residual": 0.0024728524409534554,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0480071368572999,
+          "relative_error": -239.03568428649947,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 700.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.008666802877600167,
+        "imag": 0.003525976052586384,
+        "abs": 0.00935660083804964,
+        "phase_rad": 2.755206244520072,
+        "phase_deg": 157.86168949908964
+      },
+      "B": {
+        "real": -0.008519324196969902,
+        "imag": 0.0035973020205608526,
+        "abs": 0.009247673577727971,
+        "phase_rad": 2.742051853593035,
+        "phase_deg": 157.10799841690522
+      },
+      "A_abs_v": 0.009356600838049638,
+      "A_abs_uv": 9356.600838049639,
+      "A_phase_rad": 2.755206244520072,
+      "A_phase_deg": 157.86168949908964,
+      "B_abs_v": 0.009247673577727971,
+      "B_abs_uv": 9247.673577727972,
+      "B_phase_rad": 2.742051853593035,
+      "B_phase_deg": 157.10799841690522,
+      "r_complex": {
+        "real": 0.9882727338531379,
+        "imag": -0.013000875774136856,
+        "abs": 0.9883582443873525,
+        "phase_rad": -0.013154390927037142,
+        "phase_deg": -0.7536910821844106
+      },
+      "reflection_factor_abs": 0.9883582443873524,
+      "reflection_factor_phase_rad": -0.013154390927037142,
+      "reflection_factor_phase_deg": -0.7536910821844106,
+      "swr": 170.79539465913584,
+      "reflection_energy_R": 0.9768520192484494,
+      "reflection_percent": 97.68520192484495,
+      "dissipation_D": 0.023147980751550556,
+      "dissipation_percent": 2.3147980751550556,
+      "p_max_v": 0.01860427441577761,
+      "p_max_uv": 18604.27441577761,
+      "p_min_v": 0.00010892726032166698,
+      "p_min_uv": 108.92726032166698,
+      "wavelength_m": 0.49142857142857144,
+      "wavelength_mm": 491.42857142857144,
+      "wave_number_rad_per_m": 12.785551497167763,
+      "residual": 0.00044525376161377525,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.009356600838049638,
+          "relative_error": -45.783004190248185,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 750.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.00533382536139806,
+        "imag": -0.004070276895651372,
+        "abs": 0.006709459515726026,
+        "phase_rad": -2.4897560079035697,
+        "phase_deg": -142.65251127021497
+      },
+      "B": {
+        "real": -0.005367159639302128,
+        "imag": -0.003969378335819131,
+        "abs": 0.006675504997123739,
+        "phase_rad": -2.5048016665157666,
+        "phase_deg": -143.51456400868852
+      },
+      "A_abs_v": 0.006709459515726025,
+      "A_abs_uv": 6709.4595157260255,
+      "A_phase_rad": -2.4897560079035697,
+      "A_phase_deg": -142.65251127021497,
+      "B_abs_v": 0.006675504997123739,
+      "B_abs_uv": 6675.5049971237395,
+      "B_phase_rad": -2.5048016665157666,
+      "B_phase_deg": -143.51456400868852,
+      "r_complex": {
+        "real": 0.9948266954361238,
+        "imag": -0.014968952371324173,
+        "abs": 0.9949393064340424,
+        "phase_rad": -0.015045658612197029,
+        "phase_deg": -0.8620527384735491
+      },
+      "reflection_factor_abs": 0.9949393064340423,
+      "reflection_factor_phase_rad": -0.015045658612197029,
+      "reflection_factor_phase_deg": -0.8620527384735491,
+      "swr": 394.20274719923736,
+      "reflection_energy_R": 0.9899042234874531,
+      "reflection_percent": 98.99042234874531,
+      "dissipation_D": 0.010095776512546895,
+      "dissipation_percent": 1.0095776512546895,
+      "p_max_v": 0.013384964512849765,
+      "p_max_uv": 13384.964512849765,
+      "p_min_v": 3.395451860228622e-05,
+      "p_min_uv": 33.954518602286214,
+      "wavelength_m": 0.45866666666666667,
+      "wavelength_mm": 458.6666666666667,
+      "wave_number_rad_per_m": 13.698805175536888,
+      "residual": 0.00029643083321628056,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.006709459515726025,
+          "relative_error": -32.54729757863013,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 800.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.00867934049626978,
+        "imag": -0.00016368238341874747,
+        "abs": 0.008680883789847103,
+        "phase_rad": -3.122736038534522,
+        "phase_deg": -178.9195955414301
+      },
+      "B": {
+        "real": -0.008681171084521313,
+        "imag": -2.410076550562936e-05,
+        "abs": 0.008681204538865958,
+        "phase_rad": -3.1388164493941155,
+        "phase_deg": -179.84093521652116
+      },
+      "A_abs_v": 0.008680883789847101,
+      "A_abs_uv": 8680.883789847101,
+      "A_phase_rad": -3.122736038534522,
+      "A_phase_deg": -178.9195955414301,
+      "B_abs_v": 0.008681204538865958,
+      "B_abs_uv": 8681.204538865959,
+      "B_phase_rad": -3.1388164493941155,
+      "B_phase_deg": -179.84093521652116,
+      "r_complex": {
+        "real": 0.9999076570920721,
+        "imag": -0.01608031198520668,
+        "abs": 1.0000369488898389,
+        "phase_rad": -0.01608041085959365,
+        "phase_deg": -0.9213396750910523
+      },
+      "reflection_factor_abs": 1.000036948889839,
+      "reflection_factor_phase_rad": -0.01608041085959365,
+      "reflection_factor_phase_deg": -0.9213396750910523,
+      "swr": null,
+      "reflection_energy_R": 1.0000738991448985,
+      "reflection_percent": 100.00738991448985,
+      "dissipation_D": -7.3899144898526e-05,
+      "dissipation_percent": -0.0073899144898526,
+      "p_max_v": 0.01736208832871306,
+      "p_max_uv": 17362.08832871306,
+      "p_min_v": 3.2074901885718876e-07,
+      "p_min_uv": 0.32074901885718876,
+      "wavelength_m": 0.43,
+      "wavelength_mm": 430.0,
+      "wave_number_rad_per_m": 14.612058853906015,
+      "residual": 0.0003606048966491398,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.008680883789847101,
+          "relative_error": -42.4044189492355,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 850.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.02084480206020586,
+        "imag": -0.03035012341779796,
+        "abs": 0.03681895930637816,
+        "phase_rad": -2.1726157374947324,
+        "phase_deg": -124.48171226215092
+      },
+      "B": {
+        "real": -0.02145020232217652,
+        "imag": -0.030150512820218967,
+        "abs": 0.037002224297797225,
+        "phase_rad": -2.1891572220109334,
+        "phase_deg": -125.42946951181025
+      },
+      "A_abs_v": 0.03681895930637816,
+      "A_abs_uv": 36818.95930637816,
+      "A_phase_rad": -2.1726157374947324,
+      "A_phase_deg": -124.48171226215092,
+      "B_abs_v": 0.037002224297797225,
+      "B_abs_uv": 37002.22429779723,
+      "B_phase_rad": -2.1891572220109334,
+      "B_phase_deg": -125.42946951181025,
+      "r_complex": {
+        "real": 1.004839974370869,
+        "imag": -0.016623061042894106,
+        "abs": 1.0049774625592776,
+        "phase_rad": -0.016541484516200758,
+        "phase_deg": -0.9477572496593039
+      },
+      "reflection_factor_abs": 1.0049774625592776,
+      "reflection_factor_phase_rad": -0.016541484516200758,
+      "reflection_factor_phase_deg": -0.9477572496593039,
+      "swr": null,
+      "reflection_energy_R": 1.009979700252084,
+      "reflection_percent": 100.9979700252084,
+      "dissipation_D": -0.009979700252084056,
+      "dissipation_percent": -0.9979700252084056,
+      "p_max_v": 0.07382118360417539,
+      "p_max_uv": 73821.18360417538,
+      "p_min_v": 0.00018326499141906732,
+      "p_min_uv": 183.26499141906731,
+      "wavelength_m": 0.4047058823529412,
+      "wavelength_mm": 404.7058823529412,
+      "wave_number_rad_per_m": 15.525312532275139,
+      "residual": 0.0014561156590279921,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.03681895930637816,
+          "relative_error": -183.09479653189078,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 900.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.00899740415060833,
+        "imag": 0.009200693364494333,
+        "abs": 0.012868801025613616,
+        "phase_rad": 2.345024050081403,
+        "phase_deg": 134.35998092633938
+      },
+      "B": {
+        "real": -0.00891944921511645,
+        "imag": 0.009432979085996905,
+        "abs": 0.012982205850235793,
+        "phase_rad": 2.3282202134665493,
+        "phase_deg": 133.39719200868086
+      },
+      "A_abs_v": 0.012868801025613616,
+      "A_abs_uv": 12868.801025613617,
+      "A_phase_rad": 2.345024050081403,
+      "A_phase_deg": 134.35998092633938,
+      "B_abs_v": 0.012982205850235793,
+      "B_abs_uv": 12982.205850235794,
+      "B_phase_rad": 2.3282202134665493,
+      "B_phase_deg": 133.39719200868086,
+      "r_complex": {
+        "real": 1.0086699593671529,
+        "imag": -0.016951120715463404,
+        "abs": 1.008812384650012,
+        "phase_rad": -0.016803836614853882,
+        "phase_deg": -0.9627889176585277
+      },
+      "reflection_factor_abs": 1.0088123846500123,
+      "reflection_factor_phase_rad": -0.016803836614853882,
+      "reflection_factor_phase_deg": -0.9627889176585277,
+      "swr": null,
+      "reflection_energy_R": 1.0177024274232445,
+      "reflection_percent": 101.77024274232444,
+      "dissipation_D": -0.01770242742324446,
+      "dissipation_percent": -1.770242742324446,
+      "p_max_v": 0.02585100687584941,
+      "p_max_uv": 25851.00687584941,
+      "p_min_v": 0.00011340482462217708,
+      "p_min_uv": 113.40482462217707,
+      "wavelength_m": 0.38222222222222224,
+      "wavelength_mm": 382.22222222222223,
+      "wave_number_rad_per_m": 16.438566210644264,
+      "residual": 0.000499842255691431,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.012868801025613616,
+          "relative_error": -63.344005128068076,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 950.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0072666559930833945,
+        "imag": -0.0013417642344673714,
+        "abs": 0.0073894939327879975,
+        "phase_rad": -2.959002492722076,
+        "phase_deg": -169.53835440166503
+      },
+      "B": {
+        "real": -0.007373627119672041,
+        "imag": -0.0012395007779714999,
+        "abs": 0.0074770809196206345,
+        "phase_rad": -2.975050490105012,
+        "phase_deg": -170.45783692134427
+      },
+      "A_abs_v": 0.007389493932787997,
+      "A_abs_uv": 7389.4939327879965,
+      "A_phase_rad": -2.959002492722076,
+      "A_phase_deg": -169.53835440166503,
+      "B_abs_v": 0.0074770809196206345,
+      "B_abs_uv": 7477.080919620635,
+      "B_phase_rad": -2.975050490105012,
+      "B_phase_deg": -170.45783692134427,
+      "r_complex": {
+        "real": 1.0117226147322738,
+        "imag": -0.016237515824388187,
+        "abs": 1.0118529073342903,
+        "phase_rad": -0.016047997382936045,
+        "phase_deg": -0.9194825196792258
+      },
+      "reflection_factor_abs": 1.0118529073342906,
+      "reflection_factor_phase_rad": -0.016047997382936045,
+      "reflection_factor_phase_deg": -0.9194825196792258,
+      "swr": null,
+      "reflection_energy_R": 1.0238463060808565,
+      "reflection_percent": 102.38463060808564,
+      "dissipation_D": -0.023846306080856472,
+      "dissipation_percent": -2.384630608085647,
+      "p_max_v": 0.01486657485240863,
+      "p_max_uv": 14866.57485240863,
+      "p_min_v": 8.758698683263792e-05,
+      "p_min_uv": 87.58698683263792,
+      "wavelength_m": 0.36210526315789476,
+      "wavelength_mm": 362.10526315789474,
+      "wave_number_rad_per_m": 17.35181988901339,
+      "residual": 0.0002959820790527259,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.007389493932787997,
+          "relative_error": -35.947469663939984,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1000.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.007064795596326455,
+        "imag": -0.0019674792148906967,
+        "abs": 0.0073336424291685085,
+        "phase_rad": -0.2716084956958184,
+        "phase_deg": -15.562020483267581
+      },
+      "B": {
+        "real": 0.007131786733813944,
+        "imag": -0.0021018592323747416,
+        "abs": 0.0074350651812424284,
+        "phase_rad": -0.28660304289839944,
+        "phase_deg": -16.42114475368517
+      },
+      "A_abs_v": 0.007333642429168509,
+      "A_abs_uv": 7333.642429168509,
+      "A_phase_rad": -0.2716084956958184,
+      "A_phase_deg": -15.562020483267581,
+      "B_abs_v": 0.0074350651812424284,
+      "B_abs_uv": 7435.0651812424285,
+      "B_phase_rad": -0.28660304289839944,
+      "B_phase_deg": -16.42114475368517,
+      "r_complex": {
+        "real": 1.0137158215567506,
+        "imag": -0.015201349025841708,
+        "abs": 1.0138297923649133,
+        "phase_rad": -0.014994547202580973,
+        "phase_deg": -0.8591242704175848
+      },
+      "reflection_factor_abs": 1.0138297923649133,
+      "reflection_factor_phase_rad": -0.014994547202580973,
+      "reflection_factor_phase_deg": -0.8591242704175848,
+      "swr": null,
+      "reflection_energy_R": 1.0278508478866832,
+      "reflection_percent": 102.78508478866833,
+      "dissipation_D": -0.02785084788668324,
+      "dissipation_percent": -2.785084788668324,
+      "p_max_v": 0.014768707610410938,
+      "p_max_uv": 14768.707610410938,
+      "p_min_v": 0.00010142275207391908,
+      "p_min_uv": 101.42275207391909,
+      "wavelength_m": 0.344,
+      "wavelength_mm": 344.0,
+      "wave_number_rad_per_m": 18.26507356738252,
+      "residual": 0.0003067282175770673,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.007333642429168509,
+          "relative_error": -35.668212145842546,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1050.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0027950539048790515,
+        "imag": 0.011657100024547444,
+        "abs": 0.011987506300873575,
+        "phase_rad": 1.806126339988025,
+        "phase_deg": 103.48341654872424
+      },
+      "B": {
+        "real": -0.002682959405732723,
+        "imag": 0.011866233893364175,
+        "abs": 0.012165762531992575,
+        "phase_rad": 1.793157832487693,
+        "phase_deg": 102.74037580237146
+      },
+      "A_abs_v": 0.011987506300873575,
+      "A_abs_uv": 11987.506300873574,
+      "A_phase_rad": 1.806126339988025,
+      "A_phase_deg": 103.48341654872424,
+      "B_abs_v": 0.012165762531992573,
+      "B_abs_uv": 12165.762531992574,
+      "B_phase_rad": 1.793157832487693,
+      "B_phase_deg": 102.74037580237146,
+      "r_complex": {
+        "real": 1.0147848275308695,
+        "imag": -0.01316098246960052,
+        "abs": 1.0148701678768677,
+        "phase_rad": -0.012968507500332046,
+        "phase_deg": -0.7430407463527793
+      },
+      "reflection_factor_abs": 1.0148701678768677,
+      "reflection_factor_phase_rad": -0.012968507500332046,
+      "reflection_factor_phase_deg": -0.7430407463527793,
+      "swr": null,
+      "reflection_energy_R": 1.0299614576464216,
+      "reflection_percent": 102.99614576464215,
+      "dissipation_D": -0.029961457646421552,
+      "dissipation_percent": -2.996145764642155,
+      "p_max_v": 0.02415326883286615,
+      "p_max_uv": 24153.26883286615,
+      "p_min_v": 0.00017825623111899884,
+      "p_min_uv": 178.25623111899884,
+      "wavelength_m": 0.32761904761904764,
+      "wavelength_mm": 327.61904761904765,
+      "wave_number_rad_per_m": 19.178327245751642,
+      "residual": 0.0005297418140495146,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.011987506300873575,
+          "relative_error": -58.93753150436787,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1100.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0020661297994093637,
+        "imag": -0.022225916046023565,
+        "abs": 0.022321743579588382,
+        "phase_rad": -1.66349031905362,
+        "phase_deg": -95.31097454264318
+      },
+      "B": {
+        "real": -0.002321385232230004,
+        "imag": -0.022528053479179307,
+        "abs": 0.0226473403064726,
+        "phase_rad": -1.673478120684806,
+        "phase_deg": -95.88323342272402
+      },
+      "A_abs_v": 0.022321743579588382,
+      "A_abs_uv": 22321.743579588383,
+      "A_phase_rad": -1.66349031905362,
+      "A_phase_deg": -95.31097454264318,
+      "B_abs_v": 0.0226473403064726,
+      "B_abs_uv": 22647.3403064726,
+      "B_phase_rad": -1.673478120684806,
+      "B_phase_deg": -95.88323342272402,
+      "r_complex": {
+        "real": 1.0145359222958341,
+        "imag": -0.010133320495629842,
+        "abs": 1.0145865275140045,
+        "phase_rad": -0.009987801631185886,
+        "phase_deg": -0.5722588800808305
+      },
+      "reflection_factor_abs": 1.0145865275140047,
+      "reflection_factor_phase_rad": -0.009987801631185886,
+      "reflection_factor_phase_deg": -0.5722588800808305,
+      "swr": null,
+      "reflection_energy_R": 1.0293858218129261,
+      "reflection_percent": 102.93858218129262,
+      "dissipation_D": -0.02938582181292615,
+      "dissipation_percent": -2.938582181292615,
+      "p_max_v": 0.04496908388606098,
+      "p_max_uv": 44969.08388606098,
+      "p_min_v": 0.0003255967268842169,
+      "p_min_uv": 325.59672688421693,
+      "wavelength_m": 0.31272727272727274,
+      "wavelength_mm": 312.72727272727275,
+      "wave_number_rad_per_m": 20.09158092412077,
+      "residual": 0.0010508366430184277,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.022321743579588382,
+          "relative_error": -110.60871789794191,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1150.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0013550722053575993,
+        "imag": 0.0036711686449592534,
+        "abs": 0.003913272275406437,
+        "phase_rad": 1.2171977515112156,
+        "phase_deg": 69.74029399440617
+      },
+      "B": {
+        "real": 0.0013979859965110959,
+        "imag": 0.0037153275724652775,
+        "abs": 0.00396963774382019,
+        "phase_rad": 1.210908054439731,
+        "phase_deg": 69.37992089779432
+      },
+      "A_abs_v": 0.003913272275406436,
+      "A_abs_uv": 3913.272275406436,
+      "A_phase_rad": 1.2171977515112156,
+      "A_phase_deg": 69.74029399440617,
+      "B_abs_v": 0.00396963774382019,
+      "B_abs_uv": 3969.6377438201903,
+      "B_phase_rad": 1.210908054439731,
+      "B_phase_deg": 69.37992089779432,
+      "r_complex": {
+        "real": 1.0143836014216723,
+        "imag": -0.0063802497022869675,
+        "abs": 1.0144036664067544,
+        "phase_rad": -0.006289697071484542,
+        "phase_deg": -0.3603730966118579
+      },
+      "reflection_factor_abs": 1.0144036664067542,
+      "reflection_factor_phase_rad": -0.006289697071484542,
+      "reflection_factor_phase_deg": -0.3603730966118579,
+      "swr": null,
+      "reflection_energy_R": 1.0290147984194653,
+      "reflection_percent": 102.90147984194653,
+      "dissipation_D": -0.029014798419465304,
+      "dissipation_percent": -2.9014798419465304,
+      "p_max_v": 0.007882910019226627,
+      "p_max_uv": 7882.910019226627,
+      "p_min_v": 5.6365468413754026e-05,
+      "p_min_uv": 56.36546841375402,
+      "wavelength_m": 0.2991304347826087,
+      "wavelength_mm": 299.1304347826087,
+      "wave_number_rad_per_m": 21.004834602489897,
+      "residual": 0.00019947825859089973,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.003913272275406436,
+          "relative_error": -18.56636137703218,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1200.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.001315852319291218,
+        "imag": -0.0011679007743973032,
+        "abs": 0.00175939181111596,
+        "phase_rad": -2.415691919300979,
+        "phase_deg": -138.40895157980356
+      },
+      "B": {
+        "real": -0.0013394788064289324,
+        "imag": -0.0011817978342277232,
+        "abs": 0.0017862949347343551,
+        "phase_rad": -2.418653275255604,
+        "phase_deg": -138.5786247776395
+      },
+      "A_abs_v": 0.0017593918111159601,
+      "A_abs_uv": 1759.39181111596,
+      "A_phase_rad": -2.415691919300979,
+      "A_phase_deg": -138.40895157980356,
+      "B_abs_v": 0.0017862949347343554,
+      "B_abs_uv": 1786.2949347343554,
+      "B_phase_rad": -2.418653275255604,
+      "B_phase_deg": -138.5786247776395,
+      "r_complex": {
+        "real": 1.0152866978703559,
+        "imag": -0.0030066340974169653,
+        "abs": 1.015291149730503,
+        "phase_rad": -0.0029613559546249483,
+        "phase_deg": -0.16967319783594445
+      },
+      "reflection_factor_abs": 1.0152911497305033,
+      "reflection_factor_phase_rad": -0.0029613559546249483,
+      "reflection_factor_phase_deg": -0.16967319783594445,
+      "swr": null,
+      "reflection_energy_R": 1.0308161187210871,
+      "reflection_percent": 103.08161187210871,
+      "dissipation_D": -0.030816118721087138,
+      "dissipation_percent": -3.081611872108714,
+      "p_max_v": 0.0035456867458503157,
+      "p_max_uv": 3545.6867458503157,
+      "p_min_v": 2.6903123618395247e-05,
+      "p_min_uv": 26.90312361839525,
+      "wavelength_m": 0.2866666666666667,
+      "wavelength_mm": 286.6666666666667,
+      "wave_number_rad_per_m": 21.91808828085902,
+      "residual": 9.765999117562169e-05,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0017593918111159601,
+          "relative_error": -7.7969590555798,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1250.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.000768150150857566,
+        "imag": -0.000210340995380402,
+        "abs": 0.0007964282695887432,
+        "phase_rad": -0.2672762564617975,
+        "phase_deg": -15.313801459317192
+      },
+      "B": {
+        "real": 0.0007776147255163716,
+        "imag": -0.00021447895125886827,
+        "abs": 0.0008066510285575826,
+        "phase_rad": -0.26912512116635207,
+        "phase_deg": -15.419733603778873
+      },
+      "A_abs_v": 0.0007964282695887431,
+      "A_abs_uv": 796.4282695887431,
+      "A_phase_rad": -0.2672762564617975,
+      "A_phase_deg": -15.313801459317192,
+      "B_abs_v": 0.0008066510285575826,
+      "B_abs_uv": 806.6510285575827,
+      "B_phase_rad": -0.26912512116635207,
+      "B_phase_deg": -15.419733603778873,
+      "r_complex": {
+        "real": 1.0128340249481906,
+        "imag": -0.0018725952139969765,
+        "abs": 1.0128357560362822,
+        "phase_rad": -0.0018488647045545668,
+        "phase_deg": -0.10593214446167855
+      },
+      "reflection_factor_abs": 1.0128357560362822,
+      "reflection_factor_phase_rad": -0.0018488647045545668,
+      "reflection_factor_phase_deg": -0.10593214446167855,
+      "swr": null,
+      "reflection_energy_R": 1.0258362687055873,
+      "reflection_percent": 102.58362687055873,
+      "dissipation_D": -0.025836268705587306,
+      "dissipation_percent": -2.5836268705587306,
+      "p_max_v": 0.0016030792981463256,
+      "p_max_uv": 1603.0792981463258,
+      "p_min_v": 1.0222758968839543e-05,
+      "p_min_uv": 10.222758968839543,
+      "wavelength_m": 0.2752,
+      "wavelength_mm": 275.2,
+      "wave_number_rad_per_m": 22.831341959228148,
+      "residual": 4.4476743459716065e-05,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0007964282695887431,
+          "relative_error": -2.9821413479437155,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1300.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.004450421470689646,
+        "imag": 0.008347088934370197,
+        "abs": 0.009459394533745846,
+        "phase_rad": 1.0809657927295415,
+        "phase_deg": 61.934777721416054
+      },
+      "B": {
+        "real": 0.0044836466308056,
+        "imag": 0.008381365103195567,
+        "abs": 0.009505281063861228,
+        "phase_rad": 1.0795779140235278,
+        "phase_deg": 61.85525812908539
+      },
+      "A_abs_v": 0.009459394533745846,
+      "A_abs_uv": 9459.394533745846,
+      "A_phase_rad": 1.0809657927295415,
+      "A_phase_deg": 61.934777721416054,
+      "B_abs_v": 0.009505281063861228,
+      "B_abs_uv": 9505.281063861228,
+      "B_phase_rad": 1.0795779140235278,
+      "B_phase_deg": 61.85525812908539,
+      "r_complex": {
+        "real": 1.0048499272741283,
+        "imag": -0.0013946107122397233,
+        "abs": 1.004850895049539,
+        "phase_rad": -0.0013878787060136845,
+        "phase_deg": -0.07951959233066207
+      },
+      "reflection_factor_abs": 1.004850895049539,
+      "reflection_factor_phase_rad": -0.0013878787060136845,
+      "reflection_factor_phase_deg": -0.07951959233066207,
+      "swr": null,
+      "reflection_energy_R": 1.0097253212818595,
+      "reflection_percent": 100.97253212818596,
+      "dissipation_D": -0.009725321281859545,
+      "dissipation_percent": -0.9725321281859545,
+      "p_max_v": 0.018964675597607075,
+      "p_max_uv": 18964.675597607074,
+      "p_min_v": 4.588653011538234e-05,
+      "p_min_uv": 45.886530115382335,
+      "wavelength_m": 0.26461538461538464,
+      "wavelength_mm": 264.61538461538464,
+      "wave_number_rad_per_m": 23.74459563759727,
+      "residual": 0.000547869810374347,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.009459394533745846,
+          "relative_error": -46.296972668729225,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1350.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 9.188016842650375e-05,
+        "imag": -0.0037788587600744725,
+        "abs": 0.00377997559435794,
+        "phase_rad": -1.5464868527796158,
+        "phase_deg": -88.60716973674147
+      },
+      "B": {
+        "real": 9.836771166223763e-05,
+        "imag": -0.003782354422604268,
+        "abs": 0.003783633331189973,
+        "phase_rad": -1.5447951824812307,
+        "phase_deg": -88.51024416831636
+      },
+      "A_abs_v": 0.0037799755943579406,
+      "A_abs_uv": 3779.9755943579407,
+      "A_phase_rad": -1.5464868527796158,
+      "A_phase_deg": -88.60716973674147,
+      "B_abs_v": 0.003783633331189973,
+      "B_abs_uv": 3783.633331189973,
+      "B_phase_rad": -1.5447951824812307,
+      "B_phase_deg": -88.51024416831636,
+      "r_complex": {
+        "real": 1.000966229235835,
+        "imag": 0.001693306454957488,
+        "abs": 1.0009676614942946,
+        "phase_rad": 0.0016916702983851412,
+        "phase_deg": 0.09692556842510523
+      },
+      "reflection_factor_abs": 1.0009676614942944,
+      "reflection_factor_phase_rad": 0.0016916702983851412,
+      "reflection_factor_phase_deg": 0.09692556842510523,
+      "swr": null,
+      "reflection_energy_R": 1.0019362593573564,
+      "reflection_percent": 100.19362593573564,
+      "dissipation_D": -0.001936259357356418,
+      "dissipation_percent": -0.1936259357356418,
+      "p_max_v": 0.007563608925547914,
+      "p_max_uv": 7563.608925547914,
+      "p_min_v": 3.657736832032247e-06,
+      "p_min_uv": 3.657736832032247,
+      "wavelength_m": 0.2548148148148148,
+      "wavelength_mm": 254.81481481481484,
+      "wave_number_rad_per_m": 24.6578493159664,
+      "residual": 0.0002241266448056476,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0037799755943579406,
+          "relative_error": -17.899877971789703,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1400.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0005415345528085477,
+        "imag": 0.0036264638403324563,
+        "abs": 0.0036666741956607463,
+        "phase_rad": 1.4225631277940922,
+        "phase_deg": 81.50686331353106
+      },
+      "B": {
+        "real": 0.0005294252857038133,
+        "imag": 0.003615125384418271,
+        "abs": 0.0036536861767546367,
+        "phase_rad": 1.4253827180750214,
+        "phase_deg": 81.6684139365844
+      },
+      "A_abs_v": 0.0036666741956607467,
+      "A_abs_uv": 3666.6741956607466,
+      "A_phase_rad": 1.4225631277940922,
+      "A_phase_deg": 81.50686331353106,
+      "B_abs_v": 0.0036536861767546367,
+      "B_abs_uv": 3653.6861767546366,
+      "B_phase_rad": 1.4253827180750214,
+      "B_phase_deg": 81.6684139365844,
+      "r_complex": {
+        "real": 0.9964538593372543,
+        "imag": 0.0028095990627068318,
+        "abs": 0.9964578202989837,
+        "phase_rad": 0.0028195902809291734,
+        "phase_deg": 0.16155062305334777
+      },
+      "reflection_factor_abs": 0.9964578202989838,
+      "reflection_factor_phase_rad": 0.0028195902809291734,
+      "reflection_factor_phase_deg": 0.16155062305334777,
+      "swr": 563.6240927376484,
+      "reflection_energy_R": 0.9929281876350018,
+      "reflection_percent": 99.29281876350018,
+      "dissipation_D": 0.007071812364998209,
+      "dissipation_percent": 0.7071812364998209,
+      "p_max_v": 0.007320360372415383,
+      "p_max_uv": 7320.360372415383,
+      "p_min_v": 1.2988018906109986e-05,
+      "p_min_uv": 12.988018906109986,
+      "wavelength_m": 0.24571428571428572,
+      "wavelength_mm": 245.71428571428572,
+      "wave_number_rad_per_m": 25.571102994335526,
+      "residual": 0.0002196196498430535,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0036666741956607467,
+          "relative_error": -17.333370978303734,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1450.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0018372259060499174,
+        "imag": -0.003953904301313991,
+        "abs": 0.004359903468405032,
+        "phase_rad": -1.1358172592420912,
+        "phase_deg": -65.07753525268832
+      },
+      "B": {
+        "real": 0.001831420835859683,
+        "imag": -0.0039169606626868105,
+        "abs": 0.004323966132043228,
+        "phase_rad": -1.1334344360984387,
+        "phase_deg": -64.94100954323095
+      },
+      "A_abs_v": 0.004359903468405032,
+      "A_abs_uv": 4359.903468405032,
+      "A_phase_rad": -1.1358172592420912,
+      "A_phase_deg": -65.07753525268832,
+      "B_abs_v": 0.004323966132043228,
+      "B_abs_uv": 4323.966132043228,
+      "B_phase_rad": -1.1334344360984387,
+      "B_phase_deg": -64.94100954323095,
+      "r_complex": {
+        "real": 0.991754493643333,
+        "imag": 0.002363180032867304,
+        "abs": 0.9917573091647026,
+        "phase_rad": 0.00238282314365254,
+        "phase_deg": 0.13652570945738562
+      },
+      "reflection_factor_abs": 0.9917573091647027,
+      "reflection_factor_phase_rad": 0.00238282314365254,
+      "reflection_factor_phase_deg": 0.13652570945738562,
+      "swr": 241.6392109037376,
+      "reflection_energy_R": 0.9835825602816117,
+      "reflection_percent": 98.35825602816118,
+      "dissipation_D": 0.01641743971838827,
+      "dissipation_percent": 1.6417439718388271,
+      "p_max_v": 0.00868386960044826,
+      "p_max_uv": 8683.86960044826,
+      "p_min_v": 3.5937336361803636e-05,
+      "p_min_uv": 35.93733636180364,
+      "wavelength_m": 0.23724137931034484,
+      "wavelength_mm": 237.24137931034483,
+      "wave_number_rad_per_m": 26.48435667270465,
+      "residual": 0.00025984820272703744,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.004359903468405032,
+          "relative_error": -20.79951734202516,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1500.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.008882172710548624,
+        "imag": 0.0029195755716874138,
+        "abs": 0.00934970125612624,
+        "phase_rad": 2.8240173304359995,
+        "phase_deg": 161.80427430578436
+      },
+      "B": {
+        "real": -0.00876512793864686,
+        "imag": 0.0028825425115399875,
+        "abs": 0.009226945275207987,
+        "phase_rad": 2.823869108088411,
+        "phase_deg": 161.79578179083802
+      },
+      "A_abs_v": 0.009349701256126238,
+      "A_abs_uv": 9349.701256126238,
+      "A_phase_rad": 2.8240173304359995,
+      "A_phase_deg": 161.80427430578436,
+      "B_abs_v": 0.009226945275207989,
+      "B_abs_uv": 9226.945275207989,
+      "B_phase_rad": 2.823869108088411,
+      "B_phase_deg": 161.79578179083802,
+      "r_complex": {
+        "real": 0.9868705877425563,
+        "imag": -0.00014627627635259744,
+        "abs": 0.9868705985832629,
+        "phase_rad": -0.00014822234758863137,
+        "phase_deg": -0.008492514946349672
+      },
+      "reflection_factor_abs": 0.9868705985832629,
+      "reflection_factor_phase_rad": -0.00014822234758863137,
+      "reflection_factor_phase_deg": -0.008492514946349672,
+      "swr": 151.32986916299438,
+      "reflection_energy_R": 0.9739135783480876,
+      "reflection_percent": 97.39135783480876,
+      "dissipation_D": 0.02608642165191244,
+      "dissipation_percent": 2.608642165191244,
+      "p_max_v": 0.01857664653133423,
+      "p_max_uv": 18576.64653133423,
+      "p_min_v": 0.00012275598091824984,
+      "p_min_uv": 122.75598091824983,
+      "wavelength_m": 0.22933333333333333,
+      "wavelength_mm": 229.33333333333334,
+      "wave_number_rad_per_m": 27.397610351073777,
+      "residual": 0.0005426808739470562,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.009349701256126238,
+          "relative_error": -45.74850628063119,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1550.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0023353881563703757,
+        "imag": 0.008606284819699384,
+        "abs": 0.008917520745067156,
+        "phase_rad": 1.8357738808416502,
+        "phase_deg": 105.18209551257866
+      },
+      "B": {
+        "real": -0.0022529742997155697,
+        "imag": 0.008461897125800961,
+        "abs": 0.008756688652842319,
+        "phase_rad": 1.8310090328955797,
+        "phase_deg": 104.90908983524723
+      },
+      "A_abs_v": 0.008917520745067156,
+      "A_abs_uv": 8917.520745067155,
+      "A_phase_rad": 1.8357738808416502,
+      "A_phase_deg": 105.18209551257866,
+      "B_abs_v": 0.00875668865284232,
+      "B_abs_uv": 8756.68865284232,
+      "B_phase_rad": 1.8310090328955797,
+      "B_phase_deg": 104.90908983524723,
+      "r_complex": {
+        "real": 0.9819533364052558,
+        "imag": -0.004678893747679472,
+        "abs": 0.9819644835349778,
+        "phase_rad": -0.004764847946070269,
+        "phase_deg": -0.2730056773314053
+      },
+      "reflection_factor_abs": 0.9819644835349779,
+      "reflection_factor_phase_rad": -0.004764847946070269,
+      "reflection_factor_phase_deg": -0.2730056773314053,
+      "swr": 109.89230540632309,
+      "reflection_energy_R": 0.9642542469241159,
+      "reflection_percent": 96.42542469241158,
+      "dissipation_D": 0.035745753075884124,
+      "dissipation_percent": 3.5745753075884124,
+      "p_max_v": 0.017674209397909476,
+      "p_max_uv": 17674.209397909475,
+      "p_min_v": 0.00016083209222483505,
+      "p_min_uv": 160.83209222483504,
+      "wavelength_m": 0.22193548387096773,
+      "wavelength_mm": 221.93548387096774,
+      "wave_number_rad_per_m": 28.310864029442904,
+      "residual": 0.0004922597941963155,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.008917520745067156,
+          "relative_error": -43.587603725335775,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1600.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.002635178003145302,
+        "imag": 0.0025379674376597647,
+        "abs": 0.0036586120076993857,
+        "phase_rad": 2.3749836633975123,
+        "phase_deg": 136.0765403251964
+      },
+      "B": {
+        "real": -0.002546402962819907,
+        "imag": 0.0025096593765861143,
+        "abs": 0.0035752703723697043,
+        "phase_rad": 2.3634615958855334,
+        "phase_deg": 135.4163744854952
+      },
+      "A_abs_v": 0.003658612007699386,
+      "A_abs_uv": 3658.612007699386,
+      "A_phase_rad": 2.3749836633975123,
+      "A_phase_deg": 136.0765403251964,
+      "B_abs_v": 0.0035752703723697043,
+      "B_abs_uv": 3575.270372369704,
+      "B_phase_rad": 2.3634615958855334,
+      "B_phase_deg": 135.4163744854952,
+      "r_complex": {
+        "real": 0.9771555564046231,
+        "imag": -0.011259350551445406,
+        "abs": 0.9772204226208481,
+        "phase_rad": -0.011522067511979019,
+        "phase_deg": -0.6601658397011989
+      },
+      "reflection_factor_abs": 0.9772204226208481,
+      "reflection_factor_phase_rad": -0.011522067511979019,
+      "reflection_factor_phase_deg": -0.6601658397011989,
+      "swr": 86.79794140651695,
+      "reflection_energy_R": 0.9549597543872689,
+      "reflection_percent": 95.49597543872689,
+      "dissipation_D": 0.04504024561273112,
+      "dissipation_percent": 4.504024561273113,
+      "p_max_v": 0.00723388238006909,
+      "p_max_uv": 7233.882380069091,
+      "p_min_v": 8.334163532968189e-05,
+      "p_min_uv": 83.34163532968189,
+      "wavelength_m": 0.215,
+      "wavelength_mm": 215.0,
+      "wave_number_rad_per_m": 29.22411770781203,
+      "residual": 0.0001866868396366908,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.003658612007699386,
+          "relative_error": -17.29306003849693,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1650.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0036352006688376076,
+        "imag": 7.593870562703866e-05,
+        "abs": 0.003635993755458018,
+        "phase_rad": 0.02088678707724953,
+        "phase_deg": 1.1967247471147862
+      },
+      "B": {
+        "real": 0.0035363384858626517,
+        "imag": 9.646594333501558e-07,
+        "abs": 0.003536338617434871,
+        "phase_rad": 0.00027278480645428636,
+        "phase_deg": 0.015629418125123626
+      },
+      "A_abs_v": 0.0036359937554580174,
+      "A_abs_uv": 3635.9937554580174,
+      "A_phase_rad": 0.02088678707724953,
+      "A_phase_deg": 1.1967247471147862,
+      "B_abs_v": 0.003536338617434871,
+      "B_abs_uv": 3536.338617434871,
+      "B_phase_rad": 0.00027278480645428636,
+      "B_phase_deg": 0.015629418125123626,
+      "r_complex": {
+        "real": 0.9723854112823896,
+        "imag": -0.020047594812242733,
+        "abs": 0.9725920491822755,
+        "phase_rad": -0.020614002270795243,
+        "phase_deg": -1.1810953289896626
+      },
+      "reflection_factor_abs": 0.9725920491822755,
+      "reflection_factor_phase_rad": -0.020614002270795243,
+      "reflection_factor_phase_deg": -1.1810953289896626,
+      "swr": 71.97152615680466,
+      "reflection_energy_R": 0.9459352941325778,
+      "reflection_percent": 94.59352941325778,
+      "dissipation_D": 0.05406470586742218,
+      "dissipation_percent": 5.406470586742218,
+      "p_max_v": 0.0071723323728928885,
+      "p_max_uv": 7172.332372892888,
+      "p_min_v": 9.965513802314644e-05,
+      "p_min_uv": 99.65513802314643,
+      "wavelength_m": 0.2084848484848485,
+      "wavelength_mm": 208.4848484848485,
+      "wave_number_rad_per_m": 30.137371386181155,
+      "residual": 0.00016433666198454211,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.0036359937554580174,
+          "relative_error": -17.179968777290085,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1700.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0027964838086214556,
+        "imag": -0.006033786001888782,
+        "abs": 0.006650330458591586,
+        "phase_rad": -2.0047959566398332,
+        "phase_deg": -114.86634710035483
+      },
+      "B": {
+        "real": -0.002883775317809246,
+        "imag": -0.005747342123534865,
+        "abs": 0.0064302489507455365,
+        "phase_rad": -2.035849406158238,
+        "phase_deg": -116.64557869708199
+      },
+      "A_abs_v": 0.006650330458591586,
+      "A_abs_uv": 6650.330458591586,
+      "A_phase_rad": -2.0047959566398332,
+      "A_phase_deg": -114.86634710035483,
+      "B_abs_v": 0.006430248950745536,
+      "B_abs_uv": 6430.248950745536,
+      "B_phase_rad": -2.035849406158238,
+      "B_phase_deg": -116.64557869708199,
+      "r_complex": {
+        "real": 0.966440516240884,
+        "imag": -0.030020962309427284,
+        "abs": 0.9669066809211375,
+        "phase_rad": -0.031053449518404937,
+        "phase_deg": -1.7792315967271617
+      },
+      "reflection_factor_abs": 0.9669066809211375,
+      "reflection_factor_phase_rad": -0.031053449518404937,
+      "reflection_factor_phase_deg": -1.7792315967271617,
+      "swr": 59.43515898885613,
+      "reflection_energy_R": 0.9349085296099304,
+      "reflection_percent": 93.49085296099304,
+      "dissipation_D": 0.06509147039006957,
+      "dissipation_percent": 6.509147039006957,
+      "p_max_v": 0.013080579409337122,
+      "p_max_uv": 13080.579409337122,
+      "p_min_v": 0.00022008150784605038,
+      "p_min_uv": 220.08150784605039,
+      "wavelength_m": 0.2023529411764706,
+      "wavelength_mm": 202.3529411764706,
+      "wave_number_rad_per_m": 31.050625064550278,
+      "residual": 0.00026110362295723354,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.006650330458591586,
+          "relative_error": -32.25165229295793,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1750.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.007130153776534948,
+        "imag": -0.02597228281072862,
+        "abs": 0.026933224227290442,
+        "phase_rad": -1.3028677331435041,
+        "phase_deg": -74.64882237289959
+      },
+      "B": {
+        "real": 0.005808005087537297,
+        "imag": -0.025286462786421274,
+        "abs": 0.0259449055374254,
+        "phase_rad": -1.3450239820406291,
+        "phase_deg": -77.06419751480789
+      },
+      "A_abs_v": 0.026933224227290442,
+      "A_abs_uv": 26933.22422729044,
+      "A_phase_rad": -1.3028677331435041,
+      "A_phase_deg": -74.64882237289959,
+      "B_abs_v": 0.0259449055374254,
+      "B_abs_uv": 25944.9055374254,
+      "B_phase_rad": -1.3450239820406291,
+      "B_phase_deg": -77.06419751480789,
+      "r_complex": {
+        "real": 0.9624490089650979,
+        "imag": -0.0405972919724238,
+        "abs": 0.9633048504878367,
+        "phase_rad": -0.04215624889712504,
+        "phase_deg": -2.4153751419082963
+      },
+      "reflection_factor_abs": 0.9633048504878367,
+      "reflection_factor_phase_rad": -0.04215624889712504,
+      "reflection_factor_phase_deg": -2.4153751419082963,
+      "swr": 53.50311625892298,
+      "reflection_energy_R": 0.9279562349733933,
+      "reflection_percent": 92.79562349733934,
+      "dissipation_D": 0.0720437650266067,
+      "dissipation_percent": 7.20437650266067,
+      "p_max_v": 0.05287812976471584,
+      "p_max_uv": 52878.12976471584,
+      "p_min_v": 0.000988318689865042,
+      "p_min_uv": 988.318689865042,
+      "wavelength_m": 0.19657142857142856,
+      "wavelength_mm": 196.57142857142856,
+      "wave_number_rad_per_m": 31.96387874291941,
+      "residual": 0.0008629724322613382,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.026933224227290442,
+          "relative_error": -133.6661211364522,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1800.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.0034402012211353942,
+        "imag": 0.004425222596371808,
+        "abs": 0.00560513866637937,
+        "phase_rad": 0.9099839129212213,
+        "phase_deg": 52.1382376351862
+      },
+      "B": {
+        "real": 0.0035307529904062968,
+        "imag": 0.004053909228687979,
+        "abs": 0.005375908919773899,
+        "phase_rad": 0.8542646366660774,
+        "phase_deg": 48.945758268242955
+      },
+      "A_abs_v": 0.00560513866637937,
+      "A_abs_uv": 5605.13866637937,
+      "A_phase_rad": 0.9099839129212213,
+      "A_phase_deg": 52.1382376351862,
+      "B_abs_v": 0.005375908919773899,
+      "B_abs_uv": 5375.908919773899,
+      "B_phase_rad": 0.8542646366660774,
+      "B_phase_deg": 48.945758268242955,
+      "r_complex": {
+        "real": 0.9576151944140974,
+        "imag": -0.0534129129230478,
+        "abs": 0.9591036439507852,
+        "phase_rad": -0.055719276255143925,
+        "phase_deg": -3.1924793669432496
+      },
+      "reflection_factor_abs": 0.9591036439507852,
+      "reflection_factor_phase_rad": -0.055719276255143925,
+      "reflection_factor_phase_deg": -3.1924793669432496,
+      "swr": 47.904112571623564,
+      "reflection_energy_R": 0.9198797998396745,
+      "reflection_percent": 91.98797998396745,
+      "dissipation_D": 0.0801202001603255,
+      "dissipation_percent": 8.012020016032551,
+      "p_max_v": 0.010981047586153269,
+      "p_max_uv": 10981.047586153269,
+      "p_min_v": 0.0002292297466054711,
+      "p_min_uv": 229.2297466054711,
+      "wavelength_m": 0.19111111111111112,
+      "wavelength_mm": 191.11111111111111,
+      "wave_number_rad_per_m": 32.87713242128853,
+      "residual": 0.00013576430240818318,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.00560513866637937,
+          "relative_error": -27.02569333189685,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1850.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.002804033409571812,
+        "imag": -0.0030922282575952566,
+        "abs": 0.004174263882298952,
+        "phase_rad": -2.3073558035711867,
+        "phase_deg": -132.2017493796456
+      },
+      "B": {
+        "real": -0.0028702700625327076,
+        "imag": -0.0027569130129456347,
+        "abs": 0.003979826578234345,
+        "phase_rad": -2.376336312177747,
+        "phase_deg": -136.15404139146736
+      },
+      "A_abs_v": 0.004174263882298952,
+      "A_abs_uv": 4174.263882298952,
+      "A_phase_rad": -2.3073558035711867,
+      "A_phase_deg": -132.2017493796456,
+      "B_abs_v": 0.003979826578234345,
+      "B_abs_uv": 3979.8265782343447,
+      "B_phase_rad": -2.376336312177747,
+      "B_phase_deg": -136.15404139146736,
+      "r_complex": {
+        "real": 0.9511525429904097,
+        "imag": -0.06571525044740319,
+        "abs": 0.953419977857863,
+        "phase_rad": -0.06898050860656003,
+        "phase_deg": -3.9522920118217413
+      },
+      "reflection_factor_abs": 0.953419977857863,
+      "reflection_factor_phase_rad": -0.06898050860656003,
+      "reflection_factor_phase_deg": -3.9522920118217413,
+      "swr": 41.93686237196463,
+      "reflection_energy_R": 0.909009654178488,
+      "reflection_percent": 90.9009654178488,
+      "dissipation_D": 0.090990345821512,
+      "dissipation_percent": 9.0990345821512,
+      "p_max_v": 0.008154090460533297,
+      "p_max_uv": 8154.090460533296,
+      "p_min_v": 0.00019443730406460726,
+      "p_min_uv": 194.43730406460725,
+      "wavelength_m": 0.18594594594594593,
+      "wavelength_mm": 185.94594594594594,
+      "wave_number_rad_per_m": 33.79038609965766,
+      "residual": 9.010903827936006e-05,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.004174263882298952,
+          "relative_error": -19.87131941149476,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1900.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": -0.0013573054965748653,
+        "imag": 0.005546795111450191,
+        "abs": 0.005710447812513488,
+        "phase_rad": 1.8107813728106996,
+        "phase_deg": 103.75013028295837
+      },
+      "B": {
+        "real": -0.0008392832016186407,
+        "imag": 0.00533573891838307,
+        "abs": 0.005401342990189289,
+        "phase_rad": 1.7268126624965505,
+        "phase_deg": 98.939077570801
+      },
+      "A_abs_v": 0.005710447812513488,
+      "A_abs_uv": 5710.447812513488,
+      "A_phase_rad": 1.8107813728106996,
+      "A_phase_deg": 103.75013028295837,
+      "B_abs_v": 0.005401342990189289,
+      "B_abs_uv": 5401.342990189289,
+      "B_phase_rad": 1.7268126624965505,
+      "B_phase_deg": 98.939077570801,
+      "r_complex": {
+        "real": 0.9425377147812002,
+        "imag": -0.0793302097051771,
+        "abs": 0.945870300811287,
+        "phase_rad": -0.08396871031414903,
+        "phase_deg": -4.811052712157364
+      },
+      "reflection_factor_abs": 0.945870300811287,
+      "reflection_factor_phase_rad": -0.08396871031414903,
+      "reflection_factor_phase_deg": -4.811052712157364,
+      "swr": 35.94829326553942,
+      "reflection_energy_R": 0.8946706259568346,
+      "reflection_percent": 89.46706259568346,
+      "dissipation_D": 0.10532937404316545,
+      "dissipation_percent": 10.532937404316545,
+      "p_max_v": 0.011111790802702777,
+      "p_max_uv": 11111.790802702777,
+      "p_min_v": 0.00030910482232419934,
+      "p_min_uv": 309.10482232419935,
+      "wavelength_m": 0.18105263157894738,
+      "wavelength_mm": 181.05263157894737,
+      "wave_number_rad_per_m": 34.70363977802678,
+      "residual": 0.0001466623004753996,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.005710447812513488,
+          "relative_error": -27.55223906256744,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 1950.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.023803657939782195,
+        "imag": -0.01902943672769814,
+        "abs": 0.030475130737826588,
+        "phase_rad": -0.6743952955704594,
+        "phase_deg": -38.640004159665025
+      },
+      "B": {
+        "real": 0.020302479315567418,
+        "imag": -0.0197892624783221,
+        "abs": 0.02835146514370941,
+        "phase_rad": -0.7725978014298897,
+        "phase_deg": -44.26659328301912
+      },
+      "A_abs_v": 0.030475130737826588,
+      "A_abs_uv": 30475.13073782659,
+      "A_phase_rad": -0.6743952955704594,
+      "A_phase_deg": -38.640004159665025,
+      "B_abs_v": 0.028351465143709408,
+      "B_abs_uv": 28351.465143709407,
+      "B_phase_rad": -0.7725978014298897,
+      "B_phase_deg": -44.26659328301912,
+      "r_complex": {
+        "real": 0.9258325500506087,
+        "imag": -0.09121247466180328,
+        "abs": 0.9303147995528949,
+        "phase_rad": -0.09820250585943026,
+        "phase_deg": -5.626589123354091
+      },
+      "reflection_factor_abs": 0.9303147995528949,
+      "reflection_factor_phase_rad": -0.09820250585943026,
+      "reflection_factor_phase_deg": -5.626589123354091,
+      "swr": 27.700498630524987,
+      "reflection_energy_R": 0.865485626267143,
+      "reflection_percent": 86.5485626267143,
+      "dissipation_D": 0.13451437373285702,
+      "dissipation_percent": 13.451437373285701,
+      "p_max_v": 0.05882659588153599,
+      "p_max_uv": 58826.59588153599,
+      "p_min_v": 0.0021236655941171793,
+      "p_min_uv": 2123.6655941171794,
+      "wavelength_m": 0.1764102564102564,
+      "wavelength_mm": 176.4102564102564,
+      "wave_number_rad_per_m": 35.616893456395914,
+      "residual": 0.0010564955170745322,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.030475130737826588,
+          "relative_error": -151.37565368913295,
+          "target_reached": false
+        }
+      ]
+    },
+    {
+      "frequency_hz": 2000.0,
+      "generator_voltage_v": 0.05,
+      "A": {
+        "real": 0.006716825879204548,
+        "imag": 9.169891353919035e-06,
+        "abs": 0.006716832138624531,
+        "phase_rad": 0.0013652111610271225,
+        "phase_deg": 0.07822083767100914
+      },
+      "B": {
+        "real": 0.006055647207676221,
+        "imag": -0.0005858244659806182,
+        "abs": 0.0060839176037137685,
+        "phase_rad": -0.09644008776350506,
+        "phase_deg": -5.525610004720094
+      },
+      "A_abs_v": 0.00671683213862453,
+      "A_abs_uv": 6716.83213862453,
+      "A_phase_rad": 0.0013652111610271225,
+      "A_phase_deg": 0.07822083767100914,
+      "B_abs_v": 0.0060839176037137685,
+      "B_abs_uv": 6083.917603713769,
+      "B_phase_rad": -0.09644008776350506,
+      "B_phase_deg": -5.525610004720094,
+      "r_complex": {
+        "real": 0.9014430710194676,
+        "imag": -0.08844811696592113,
+        "abs": 0.9057718695586798,
+        "phase_rad": -0.0978052989245322,
+        "phase_deg": -5.603830842391105
+      },
+      "reflection_factor_abs": 0.9057718695586798,
+      "reflection_factor_phase_rad": -0.0978052989245322,
+      "reflection_factor_phase_deg": -5.603830842391105,
+      "swr": 20.22508417213567,
+      "reflection_energy_R": 0.8204226796838261,
+      "reflection_percent": 82.0422679683826,
+      "dissipation_D": 0.1795773203161739,
+      "dissipation_percent": 17.95773203161739,
+      "p_max_v": 0.012800749742338299,
+      "p_max_uv": 12800.7497423383,
+      "p_min_v": 0.0006329145349107616,
+      "p_min_uv": 632.9145349107615,
+      "wavelength_m": 0.172,
+      "wavelength_mm": 172.0,
+      "wave_number_rad_per_m": 36.53014713476504,
+      "residual": 0.0003194454813944482,
+      "target_reached": false,
+      "steps": [
+        {
+          "step": 1,
+          "generator_voltage_v": 0.05,
+          "measured_A_abs_v": 0.00671683213862453,
+          "relative_error": -32.58416069312265,
+          "target_reached": false
+        }
+      ]
+    }
+  ]
+}
