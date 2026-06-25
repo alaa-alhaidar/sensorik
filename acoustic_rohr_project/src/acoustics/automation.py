@@ -72,6 +72,7 @@ def run_auto_measurement_steps(
             "step": step,
             "frequency": f0,
             "voltage": voltage,
+            "voltage_before_regulation": voltage,
             "measurement_result": measurement_result,
             "m": m,
             "wave": wave,
@@ -80,9 +81,9 @@ def run_auto_measurement_steps(
             "relative_error": relative_error,
         }
 
-        results.append(step_result)
-
         if ok:
+            step_result["voltage_after_regulation"] = voltage
+            results.append(step_result)
             break
 
         new_voltage = update_voltage_from_amplitude(
@@ -92,6 +93,8 @@ def run_auto_measurement_steps(
             min_voltage,
             max_voltage,
         )
+        step_result["voltage_after_regulation"] = new_voltage
+        results.append(step_result)
 
         # Wenn |A| zu groß ist und die berechnete Spannung unter das Minimum fällt,
         # dann nicht sofort abbrechen, sondern einmal mit Minimalspannung neu messen.
@@ -153,6 +156,8 @@ def run_frequency_sweep_steps(
             "step": 1,
             "frequency": f0,
             "voltage": voltage,
+            "voltage_before_regulation": voltage,
+            "voltage_after_regulation": voltage,
             "measurement_result": measurement_result,
             "m": m,
             "wave": wave,
@@ -239,6 +244,7 @@ def run_automatic_frequency_sweep_steps(
             raise RuntimeError(f"Keine Messung bei {f0:.1f} Hz erhalten.")
 
         last = step_results[-1]
+        first = step_results[0]
         wave = last["wave"]
 
         # Gefundene Spannung als Startwert für nächste Frequenz übernehmen.
@@ -247,6 +253,10 @@ def run_automatic_frequency_sweep_steps(
         frequency_result = {
             "frequency": f0,
             "voltage": voltage,
+            "voltage_before_regulation": float(first.get("voltage_before_regulation", first["voltage"])),
+            "voltage_after_regulation": float(last.get("voltage_after_regulation", last.get("voltage", voltage))),
+            "A_abs_before_regulation": float(first.get("measured_A_abs", first["wave"]["A_abs"])),
+            "A_abs_after_regulation": float(last.get("measured_A_abs", wave["A_abs"])),
             "A_abs": wave["A_abs"],
             "B_abs": wave["B_abs"],
             "B_over_A": wave["B_over_A"],
@@ -256,6 +266,7 @@ def run_automatic_frequency_sweep_steps(
             "residual": wave["residual"],
             "wave": wave,
             "step_results": step_results,
+            "regulation_enabled": True,
             "target_reached": bool(last["ok"]),
         }
 

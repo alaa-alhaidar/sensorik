@@ -77,7 +77,7 @@ TARGET_AMP = 0.0150 V  = 15 mV   = 15000 µV
 TARGET_AMP = 0.1500 V  = 150 mV  = 150000 µV
 
 '''
-TARGET_AMP = 0.050 # 0.0002 200 µV . In Labore 0,150 
+TARGET_AMP = 0.0002 # Simulation: 0.2 mV. Im Labor ggf. 0.05 bis 0.15 V.
 AMP_TOLERANCE = 0.010
 MAX_AUTO_STEPS = 10
 MIN_GENERATOR_VOLTAGE = 0.05 # 0.05 50 mV
@@ -90,7 +90,9 @@ NUM_CHANNELS = 3
 SOURCE_SIMULATION = "Simulation"
 SOURCE_SCARLETT = "Audio-Interface"
 
-USE_SIMULATED_GENERATOR = False   # Zuhause / Simulation
+USE_SIMULATED_GENERATOR = True   # Zuhause / Simulation
+GENERATOR_MODE_SIMULATION = "Simulation"
+GENERATOR_MODE_AGILENT = "Agilent 33120A"
 
 # Feste Messparameter
 DEFAULT_MEASUREMENT_F0 = 1000.0  # Periode von 1 ms, 0,001 s
@@ -629,8 +631,12 @@ class AutomationAnalysisDialog(QDialog):
 
         self.frequencies = []
         self.a_abs_uv = []
+        self.a_abs_before_uv = []
+        self.a_abs_after_uv = []
         self.b_abs_uv = []
         self.voltages = []
+        self.voltages_before = []
+        self.voltages_after = []
 
         layout = QVBoxLayout(self)
 
@@ -652,14 +658,23 @@ class AutomationAnalysisDialog(QDialog):
         self.ab_plot = pg.PlotWidget(background="w")
         self._style_plot(self.ab_plot, "Frequenz [Hz]", "Amplitude [mV]")
         self.ab_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
+        self.a_before_curve = self.ab_plot.plot(
+            [], [],
+            pen=pg.mkPen(180, 180, 180, width=2, style=Qt.DashLine),
+            symbol="o",
+            symbolSize=6,
+            symbolBrush=pg.mkBrush(180, 180, 180),
+            symbolPen=pg.mkPen(180, 180, 180),
+            name="alte |A| vor Regelung"
+        )
         self.a_curve = self.ab_plot.plot(
             [], [],
             pen=pg.mkPen("r", width=3),
             symbol="o",
-            symbolSize=6,
+            symbolSize=7,
             symbolBrush="r",
             symbolPen=pg.mkPen("r"),
-            name="|A(f)| hinlaufend"
+            name="neue |A| nach Regelung"
         )
 
         self.tolerance_band = pg.LinearRegionItem(
@@ -695,9 +710,14 @@ class AutomationAnalysisDialog(QDialog):
         self.voltage_plot = pg.PlotWidget(background="w")
         self._style_plot(self.voltage_plot, "Frequenz [Hz]", "Generator-Spannung [V]")
         self.voltage_plot.addLegend(offset=(10, 10), labelTextColor=(0, 0, 0), labelTextSize="12pt")
+        self.voltage_before_curve = self.voltage_plot.plot(
+            [], [], pen=pg.mkPen(120, 120, 120, width=2, style=Qt.DashLine), symbol="o", symbolSize=6,
+            symbolBrush=pg.mkBrush(120, 120, 120),
+            name="U vor Regelung"
+        )
         self.voltage_curve = self.voltage_plot.plot(
             [], [], pen=pg.mkPen("b", width=3), symbol="o", symbolSize=7,
-            name="U(f) für Zielamplitude"
+            name="U nach Regelung"
         )
         voltage_layout.addWidget(self.voltage_plot)
 
@@ -708,14 +728,20 @@ class AutomationAnalysisDialog(QDialog):
             self.ab_plot,
             lambda: (
                 self.frequencies,
-                [("|A|", self.a_abs_uv, " mV")],
+                [
+                    ("alte |A|", self.a_abs_before_uv, " mV"),
+                    ("neue |A|", self.a_abs_after_uv, " mV"),
+                ],
             ),
         )
         self._install_hover(
             self.voltage_plot,
             lambda: (
                 self.frequencies,
-                [("U", self.voltages, " V")],
+                [
+                    ("U vor", self.voltages_before, " V"),
+                    ("U nach", self.voltages_after, " V"),
+                ],
             ),
         )
 
@@ -748,21 +774,32 @@ class AutomationAnalysisDialog(QDialog):
         layout = QVBoxLayout(dialog)
 
         table = QTableWidget()
-        table.setColumnCount(2)
+        table.setColumnCount(5)
         table.setRowCount(len(self.frequencies))
-        table.setHorizontalHeaderLabels(["Frequenz [Hz]", "Benötigte Spannung [V]"])
+        table.setHorizontalHeaderLabels([
+            "Frequenz [Hz]",
+            "alte |A| [mV]",
+            "neue |A| [mV]",
+            "U vor Regelung [V]",
+            "U nach Regelung [V]",
+        ])
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-        for row, (frequency, voltage) in enumerate(zip(self.frequencies, self.voltages)):
-            frequency_item = QTableWidgetItem(f"{float(frequency):.1f}")
-            voltage_item = QTableWidgetItem(f"{float(voltage):.4f}")
-            frequency_item.setTextAlignment(Qt.AlignCenter)
-            voltage_item.setTextAlignment(Qt.AlignCenter)
-            table.setItem(row, 0, frequency_item)
-            table.setItem(row, 1, voltage_item)
+        for row, frequency in enumerate(self.frequencies):
+            row_values = [
+                f"{float(frequency):.1f}",
+                f"{float(self.a_abs_before_uv[row]):.4f}",
+                f"{float(self.a_abs_after_uv[row]):.4f}",
+                f"{float(self.voltages_before[row]):.4f}",
+                f"{float(self.voltages_after[row]):.4f}",
+            ]
+            for column, value in enumerate(row_values):
+                table_item = QTableWidgetItem(value)
+                table_item.setTextAlignment(Qt.AlignCenter)
+                table.setItem(row, column, table_item)
 
         close_button = QPushButton("Schließen")
         close_button.clicked.connect(dialog.close)
@@ -787,19 +824,51 @@ class AutomationAnalysisDialog(QDialog):
     def clear_data(self):
         self.frequencies.clear()
         self.a_abs_uv.clear()
+        self.a_abs_before_uv.clear()
+        self.a_abs_after_uv.clear()
         self.b_abs_uv.clear()
         self.voltages.clear()
+        self.voltages_before.clear()
+        self.voltages_after.clear()
+        self.a_before_curve.setData([], [])
         self.a_curve.setData([], [])
+        self.voltage_before_curve.setData([], [])
         self.voltage_curve.setData([], [])
 
     def append_frequency_result(self, item):
+        steps = item.get("step_results") or []
+        first_step = steps[0] if steps else {}
+        last_step = steps[-1] if steps else {}
+        a_before = float(item.get(
+            "A_abs_before_regulation",
+            first_step.get("measured_A_abs", item["A_abs"]),
+        ))
+        a_after = float(item.get(
+            "A_abs_after_regulation",
+            last_step.get("measured_A_abs", item["A_abs"]),
+        ))
+        voltage_before = float(item.get(
+            "voltage_before_regulation",
+            first_step.get("voltage_before_regulation", first_step.get("voltage", item["voltage"])),
+        ))
+        voltage_after = float(item.get(
+            "voltage_after_regulation",
+            last_step.get("voltage_after_regulation", last_step.get("voltage", item["voltage"])),
+        ))
+
         self.frequencies.append(float(item["frequency"]))
-        self.a_abs_uv.append(float(item["A_abs"]) * 1e3)
-        self.voltages.append(float(item["voltage"]))
+        self.a_abs_uv.append(a_after * 1e3)
+        self.a_abs_before_uv.append(a_before * 1e3)
+        self.a_abs_after_uv.append(a_after * 1e3)
+        self.voltages.append(voltage_after)
+        self.voltages_before.append(voltage_before)
+        self.voltages_after.append(voltage_after)
 
         x = np.asarray(self.frequencies, dtype=float)
-        self.a_curve.setData(x, np.asarray(self.a_abs_uv, dtype=float))
-        self.voltage_curve.setData(x, np.asarray(self.voltages, dtype=float))
+        self.a_before_curve.setData(x, np.asarray(self.a_abs_before_uv, dtype=float))
+        self.a_curve.setData(x, np.asarray(self.a_abs_after_uv, dtype=float))
+        self.voltage_before_curve.setData(x, np.asarray(self.voltages_before, dtype=float))
+        self.voltage_curve.setData(x, np.asarray(self.voltages_after, dtype=float))
 
         if x.size:
             x_min = float(np.min(x))
@@ -812,7 +881,8 @@ class AutomationAnalysisDialog(QDialog):
             self.voltage_plot.setXRange(x_min, x_max, padding=0.03)
 
             all_ab = np.asarray(
-                    self.a_abs_uv
+                    self.a_abs_before_uv
+                    + self.a_abs_after_uv
                     + [self.target_amp_uv, self.lower_tolerance_uv, self.upper_tolerance_uv],
                     dtype=float,
                 )
@@ -821,7 +891,7 @@ class AutomationAnalysisDialog(QDialog):
             y_span = max(y_max - y_min, 1.0)
             self.ab_plot.setYRange(max(0.0, y_min - 0.12 * y_span), y_max + 0.15 * y_span, padding=0)
 
-            v = np.asarray(self.voltages, dtype=float)
+            v = np.asarray(self.voltages_before + self.voltages_after, dtype=float)
             v_min = float(np.min(v))
             v_max = float(np.max(v))
             v_span = max(v_max - v_min, max(v_max * 0.1, 0.01))
@@ -953,6 +1023,10 @@ class FrequencyAnalysisDialog(QDialog):
         self.reference_plot_combo.currentTextChanged.connect(self._refresh_reference_plots)
         self.reference_plot_combo.hide()
         top.addWidget(self.reference_plot_combo)
+        self.reference_condition_combo = QComboBox()
+        self.reference_condition_combo.currentIndexChanged.connect(self._refresh_reference_plots)
+        self.reference_condition_combo.hide()
+        top.addWidget(self.reference_condition_combo)
         main_layout.addLayout(top)
 
         row_top = QHBoxLayout()
@@ -1075,7 +1149,7 @@ class FrequencyAnalysisDialog(QDialog):
     @staticmethod
     def _format_swr(gamma):
         gamma = float(gamma)
-        if gamma >= 1.0:
+        if gamma >= 0.999:
             return "∞"
         return f"{(1.0 + gamma) / (1.0 - gamma):.6f}"
 
@@ -1090,16 +1164,76 @@ class FrequencyAnalysisDialog(QDialog):
             return default
         return float(value)
 
+    def _json_reflection_values(self, item):
+        if "reflection_factor_abs" in item:
+            gamma = self._json_value(item, "reflection_factor_abs")
+            R = min(abs(gamma), 1.0) ** 2
+        else:
+            R = float(np.clip(self._json_value(item, "reflection_energy_R"), 0.0, 1.0))
+            gamma = np.sqrt(R)
+        D = max(1.0 - R, 0.0)
+        swr = None if gamma >= 0.999 else float((1.0 + gamma) / (1.0 - gamma))
+        return R, D, swr
+
+    @staticmethod
+    def _scale_microvolt_values(values):
+        values = np.asarray(values, dtype=float)
+        max_abs = float(np.max(np.abs(values))) if values.size else 0.0
+        if max_abs >= 1_000_000.0:
+            return values / 1_000_000.0, "V"
+        if max_abs >= 1_000.0:
+            return values / 1_000.0, "mV"
+        return values, "µV"
+
     def set_reference_json_data(self, payload, file_path=None):
         self.reference_payload = payload
         self.reference_file_path = file_path
+        self.reference_condition_combo.blockSignals(True)
+        self.reference_condition_combo.clear()
+        if self._is_reference_database():
+            self.reference_condition_combo.addItem("Alle Abschlüsse", "__all__")
+            for experiment in self._reference_experiments():
+                self.reference_condition_combo.addItem(
+                    experiment.get("condition_name", experiment.get("condition_id", "Abschluss")),
+                    experiment.get("condition_id", ""),
+                )
+            self.reference_condition_combo.show()
+        else:
+            self.reference_condition_combo.hide()
+        self.reference_condition_combo.blockSignals(False)
         self.reference_plot_combo.show()
         self.wave_data_button.hide()
         self.status_label.setText("")
         self._refresh_reference_plots()
 
+    def _is_reference_database(self):
+        return bool(self.reference_payload and self.reference_payload.get("experiments"))
+
+    def _reference_experiments(self):
+        if self.reference_payload is None:
+            return []
+        if self._is_reference_database():
+            return self.reference_payload.get("experiments", [])
+        return [self.reference_payload]
+
+    def _selected_reference_experiment(self):
+        if not self._is_reference_database():
+            return self.reference_payload
+        condition_id = self.reference_condition_combo.currentData()
+        for experiment in self._reference_experiments():
+            if experiment.get("condition_id") == condition_id:
+                return experiment
+        experiments = self._reference_experiments()
+        return experiments[0] if experiments else None
+
+    def _current_reference_frequencies(self):
+        experiment = self._selected_reference_experiment()
+        if experiment is None:
+            return []
+        return experiment.get("frequencies", [])
+
     def _nearest_reference_item(self, target_hz):
-        frequencies = self.reference_payload.get("frequencies", [])
+        frequencies = self._current_reference_frequencies()
         if not frequencies:
             return None
         return min(
@@ -1109,7 +1243,7 @@ class FrequencyAnalysisDialog(QDialog):
 
     def _prepare_reference_plot(self, plot, title, xlabel, ylabel):
         plot.clear()
-        self._add_bottom_right_legend(plot)
+        self._add_top_right_legend(plot)
         plot.setTitle(title, color="k")
         plot.setLabel("bottom", xlabel, color="k")
         plot.setLabel("left", ylabel, color="k")
@@ -1127,6 +1261,11 @@ class FrequencyAnalysisDialog(QDialog):
 
         plots = [self.rd_plot, self.ab_plot, self.spatial_plot, self.rms_plot]
         mode = self.reference_plot_combo.currentText()
+        if self._is_reference_database() and self.reference_condition_combo.currentData() == "__all__":
+            for plot, experiment in zip(plots, self._reference_experiments()):
+                self._plot_reference_condition_sweep(plot, experiment, mode)
+            return
+
         for plot, target_hz in zip(plots, self.reference_targets_hz):
             item = self._nearest_reference_item(target_hz)
             if item is None:
@@ -1146,18 +1285,118 @@ class FrequencyAnalysisDialog(QDialog):
                 self._plot_reference_pressure_limits(plot, item, target_hz, measured_hz)
 
     def _reference_title(self, name, target_hz, measured_hz):
-        return f"{name}: Soll {target_hz:.0f} Hz, JSON {measured_hz:.1f} Hz"
+        return f"{name} bei {measured_hz:.1f} Hz"
+
+    def _plot_reference_condition_sweep(self, plot, experiment, mode):
+        frequencies = experiment.get("frequencies", [])
+        condition_name = experiment.get("condition_name", experiment.get("condition_id", "Abschluss"))
+        if not frequencies:
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", "Wert")
+            return
+
+        x = np.asarray(
+            [self._json_value(item, "frequency_hz") for item in frequencies],
+            dtype=float,
+        )
+
+        if mode == "Reflexion / Dissipation / SWR":
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", "R, D")
+            values = [self._json_reflection_values(item) for item in frequencies]
+            reflection = np.asarray([value[0] for value in values], dtype=float)
+            dissipation = np.asarray([value[1] for value in values], dtype=float)
+            plot.plot(x, reflection, pen=pg.mkPen("b", width=3), symbol="o", symbolSize=5, name="R")
+            plot.plot(x, dissipation, pen=pg.mkPen("r", width=3), symbol="o", symbolSize=5, name="D")
+            plot.setYRange(
+                0.0,
+                max(1.0, float(np.max([reflection.max(), dissipation.max()]))) * 1.08,
+                padding=0,
+            )
+
+        elif mode == "A/B Amplituden":
+            a_values = np.asarray([self._json_value(item, "A_abs_uv") for item in frequencies], dtype=float)
+            b_values = np.asarray([self._json_value(item, "B_abs_uv") for item in frequencies], dtype=float)
+            combined_values, unit = self._scale_microvolt_values(np.concatenate((a_values, b_values)))
+            a_values = combined_values[:len(a_values)]
+            b_values = combined_values[len(a_values):]
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", f"Amplitude [{unit}]")
+            plot.plot(x, a_values, pen=pg.mkPen("c", width=3), symbol="o", symbolSize=5, name="|A|")
+            plot.plot(x, b_values, pen=pg.mkPen("m", width=3), symbol="o", symbolSize=5, name="|B|")
+            plot.setYRange(0.0, max(float(np.max(a_values)), float(np.max(b_values)), 1.0) * 1.12, padding=0)
+
+        elif mode == "Stehende Welle":
+            target_hz = 1000.0
+            item = min(frequencies, key=lambda entry: abs(self._json_value(entry, "frequency_hz") - target_hz))
+            self._plot_reference_standing_wave(
+                plot,
+                item,
+                target_hz,
+                self._json_value(item, "frequency_hz"),
+            )
+            plot.setTitle(f"{condition_name}: Stehende Welle bei {self._json_value(item, 'frequency_hz'):.1f} Hz", color="k")
+            return
+
+        elif mode == "Generator-Spannung":
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", "Wert [V]")
+            voltage_before = np.asarray([
+                self._json_value(item, "generator_voltage_before_regulation_v", self._json_value(item, "generator_voltage_v"))
+                for item in frequencies
+            ], dtype=float)
+            voltage_after = np.asarray([
+                self._json_value(item, "generator_voltage_after_regulation_v", self._json_value(item, "generator_voltage_v"))
+                for item in frequencies
+            ], dtype=float)
+            amplitude_before = np.asarray([
+                self._json_value(item, "A_abs_before_regulation_v", self._json_value(item, "A_abs_v"))
+                for item in frequencies
+            ], dtype=float)
+            amplitude_after = np.asarray([
+                self._json_value(item, "A_abs_after_regulation_v", self._json_value(item, "A_abs_v"))
+                for item in frequencies
+            ], dtype=float)
+            plot.plot(x, voltage_before, pen=pg.mkPen(120, 120, 120, width=2, style=Qt.DashLine), symbol="o", symbolSize=5, name="U vor")
+            plot.plot(x, voltage_after, pen=pg.mkPen("b", width=3), symbol="o", symbolSize=5, name="U nach")
+            plot.plot(x, amplitude_before, pen=pg.mkPen(255, 160, 0, width=2, style=Qt.DashLine), symbol="o", symbolSize=5, name="alte |A|")
+            plot.plot(x, amplitude_after, pen=pg.mkPen("r", width=3), symbol="o", symbolSize=5, name="neue |A|")
+            max_value = max(
+                float(np.max(voltage_before)),
+                float(np.max(voltage_after)),
+                float(np.max(amplitude_before)),
+                float(np.max(amplitude_after)),
+                0.1,
+            )
+            plot.setYRange(0.0, max_value * 1.2, padding=0)
+
+        elif mode == "Phasen":
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", "Phase [°]")
+            a_phase = np.asarray([self._json_value(item, "A_phase_deg") for item in frequencies], dtype=float)
+            b_phase = np.asarray([self._json_value(item, "B_phase_deg") for item in frequencies], dtype=float)
+            r_phase = np.asarray([self._json_value(item, "reflection_factor_phase_deg") for item in frequencies], dtype=float)
+            plot.plot(x, a_phase, pen=pg.mkPen("c", width=2), name="A")
+            plot.plot(x, b_phase, pen=pg.mkPen("m", width=2), name="B")
+            plot.plot(x, r_phase, pen=pg.mkPen("y", width=2), name="r")
+            plot.setYRange(-190.0, 190.0, padding=0)
+
+        elif mode == "p_max / p_min":
+            p_max = np.asarray([self._json_value(item, "p_max_uv") for item in frequencies], dtype=float)
+            p_min = np.asarray([self._json_value(item, "p_min_uv") for item in frequencies], dtype=float)
+            combined_values, unit = self._scale_microvolt_values(np.concatenate((p_max, p_min)))
+            p_max = combined_values[:len(p_max)]
+            p_min = combined_values[len(p_max):]
+            self._prepare_reference_plot(plot, condition_name, "Frequenz [Hz]", f"Amplitude [{unit}]")
+            plot.plot(x, p_max, pen=pg.mkPen("r", width=3), symbol="o", symbolSize=5, name="p_max")
+            plot.plot(x, p_min, pen=pg.mkPen("g", width=3), symbol="o", symbolSize=5, name="p_min")
+            plot.setYRange(0.0, max(float(np.max(p_max)), float(np.max(p_min)), 1.0) * 1.12, padding=0)
+
+        plot.setXRange(float(np.min(x)), float(np.max(x)), padding=0.03)
 
     def _plot_reference_reflection(self, plot, item, target_hz, measured_hz):
-        R = self._json_value(item, "reflection_energy_R")
-        D = self._json_value(item, "dissipation_D")
-        swr = item.get("swr")
+        R, D, swr = self._json_reflection_values(item)
         swr_text = "∞" if swr is None else f"{float(swr):.3f}"
         self._prepare_reference_plot(
             plot,
             self._reference_title("Reflexion / Dissipation", target_hz, measured_hz),
             "Wert",
-            "",
+            "Kennwert",
         )
         plot.addItem(pg.BarGraphItem(x=[R / 2.0], y=[1.0], width=R, height=0.45, brush=pg.mkBrush("b")))
         plot.addItem(pg.BarGraphItem(x=[D / 2.0], y=[0.0], width=D, height=0.45, brush=pg.mkBrush("r")))
@@ -1171,19 +1410,22 @@ class FrequencyAnalysisDialog(QDialog):
     def _plot_reference_ab(self, plot, item, target_hz, measured_hz):
         A_uv = self._json_value(item, "A_abs_uv")
         B_uv = self._json_value(item, "B_abs_uv")
-        max_uv = max(A_uv, B_uv, 1.0)
+        scaled_values, unit = self._scale_microvolt_values([A_uv, B_uv])
+        A_value = float(scaled_values[0])
+        B_value = float(scaled_values[1])
+        max_value = max(A_value, B_value, 1.0)
         self._prepare_reference_plot(
             plot,
             self._reference_title("A/B Amplituden", target_hz, measured_hz),
-            "Amplitude [µV]",
-            "",
+            f"Amplitude [{unit}]",
+            "Welle",
         )
-        plot.addItem(pg.BarGraphItem(x=[A_uv / 2.0], y=[1.0], width=A_uv, height=0.45, brush=pg.mkBrush("c")))
-        plot.addItem(pg.BarGraphItem(x=[B_uv / 2.0], y=[0.0], width=B_uv, height=0.45, brush=pg.mkBrush("m")))
-        plot.plot([A_uv], [1.0], pen=None, symbol="o", symbolBrush="c", name=f"|A| = {A_uv:.3f} µV")
-        plot.plot([B_uv], [0.0], pen=None, symbol="o", symbolBrush="m", name=f"|B| = {B_uv:.3f} µV")
+        plot.addItem(pg.BarGraphItem(x=[A_value / 2.0], y=[1.0], width=A_value, height=0.45, brush=pg.mkBrush("c")))
+        plot.addItem(pg.BarGraphItem(x=[B_value / 2.0], y=[0.0], width=B_value, height=0.45, brush=pg.mkBrush("m")))
+        plot.plot([A_value], [1.0], pen=None, symbol="o", symbolBrush="c", name=f"|A| = {A_value:.3f} {unit}")
+        plot.plot([B_value], [0.0], pen=None, symbol="o", symbolBrush="m", name=f"|B| = {B_value:.3f} {unit}")
         plot.getAxis("left").setTicks([[(1.0, "|A|"), (0.0, "|B|")]])
-        plot.setXRange(0.0, max_uv * 1.15, padding=0)
+        plot.setXRange(0.0, max_value * 1.15, padding=0)
         plot.setYRange(-0.7, 1.7, padding=0)
 
     def _add_wavelength_markers(self, plot, x_mm, p_abs_uv, wavelength_mm):
@@ -1265,32 +1507,44 @@ class FrequencyAnalysisDialog(QDialog):
         x = np.linspace(-0.8, 0.0, 1000)
         x_mm = x * 1000.0
         p_abs_uv = np.abs(A * np.exp(-1j * k * x) + B * np.exp(1j * k * x)) * 1e6
+        p_abs_values, unit = self._scale_microvolt_values(p_abs_uv)
         self._prepare_reference_plot(
             plot,
             self._reference_title("Stehende Welle", target_hz, measured_hz),
             "Rohrposition x [mm]",
-            "|P(x)| [µV]",
+            f"|P(x)| [{unit}]",
         )
-        plot.plot(x_mm, p_abs_uv, pen=pg.mkPen(0, 90, 220, width=3), name="|P(x)|")
-        plot.plot(x_mm, np.ones_like(x_mm) * np.max(p_abs_uv), pen=pg.mkPen("r", width=2, style=Qt.DashLine), name=f"p_max = {np.max(p_abs_uv):.3f} µV")
-        plot.plot(x_mm, np.ones_like(x_mm) * np.min(p_abs_uv), pen=pg.mkPen("g", width=2, style=Qt.DashLine), name=f"p_min = {np.min(p_abs_uv):.3f} µV")
-        self._add_wavelength_markers(plot, x_mm, p_abs_uv, speed / measured_hz * 1000.0)
+        plot.plot(x_mm, p_abs_values, pen=pg.mkPen(0, 90, 220, width=3), name="|P(x)|")
+        plot.plot(x_mm, np.ones_like(x_mm) * np.max(p_abs_values), pen=pg.mkPen("r", width=2, style=Qt.DashLine), name=f"p_max = {np.max(p_abs_values):.3f} {unit}")
+        plot.plot(x_mm, np.ones_like(x_mm) * np.min(p_abs_values), pen=pg.mkPen("g", width=2, style=Qt.DashLine), name=f"p_min = {np.min(p_abs_values):.3f} {unit}")
+        self._add_wavelength_markers(plot, x_mm, p_abs_values, speed / measured_hz * 1000.0)
         plot.setXRange(float(x_mm[0]), float(x_mm[-1]), padding=0)
-        plot.setYRange(0.0, max(float(np.max(p_abs_uv)) * 1.15, 1.0), padding=0)
+        plot.setYRange(0.0, max(float(np.max(p_abs_values)) * 1.15, 1.0), padding=0)
 
     def _plot_reference_voltage(self, plot, item, target_hz, measured_hz):
-        voltage = self._json_value(item, "generator_voltage_v")
+        voltage_before = self._json_value(item, "generator_voltage_before_regulation_v", self._json_value(item, "generator_voltage_v"))
+        voltage_after = self._json_value(item, "generator_voltage_after_regulation_v", self._json_value(item, "generator_voltage_v"))
+        amplitude_before = self._json_value(item, "A_abs_before_regulation_v", self._json_value(item, "A_abs_v"))
+        amplitude_after = self._json_value(item, "A_abs_after_regulation_v", self._json_value(item, "A_abs_v"))
         self._prepare_reference_plot(
             plot,
             self._reference_title("Generator-Spannung", target_hz, measured_hz),
-            "Spannung [V]",
-            "",
+            "Wert [V]",
+            "Regelung",
         )
-        plot.addItem(pg.BarGraphItem(x=[voltage / 2.0], y=[0.0], width=voltage, height=0.55, brush=pg.mkBrush("b")))
-        plot.plot([voltage], [0.0], pen=None, symbol="o", symbolBrush="b", name=f"U = {voltage:.4f} V")
-        plot.getAxis("left").setTicks([[(0.0, "U")]])
-        plot.setXRange(0.0, max(voltage * 1.25, 0.1), padding=0)
-        plot.setYRange(-0.8, 0.8, padding=0)
+        values = [
+            ("U vor", voltage_before, pg.mkBrush(120, 120, 120)),
+            ("U nach", voltage_after, pg.mkBrush("b")),
+            ("alte |A|", amplitude_before, pg.mkBrush(255, 160, 0)),
+            ("neue |A|", amplitude_after, pg.mkBrush("r")),
+        ]
+        y_positions = [3.0, 2.0, 1.0, 0.0]
+        for (label, value, brush), y_position in zip(values, y_positions):
+            plot.addItem(pg.BarGraphItem(x=[value / 2.0], y=[y_position], width=value, height=0.45, brush=brush))
+            plot.plot([value], [y_position], pen=None, symbol="o", symbolBrush=brush, name=f"{label} = {value:.4e} V")
+        plot.getAxis("left").setTicks([[pair for pair in zip(y_positions, [value[0] for value in values])]])
+        plot.setXRange(0.0, max(max(value[1] for value in values) * 1.25, 0.1), padding=0)
+        plot.setYRange(-0.7, 3.7, padding=0)
 
     def _plot_reference_phases(self, plot, item, target_hz, measured_hz):
         A_phase = self._json_value(item, "A_phase_deg")
@@ -1300,7 +1554,7 @@ class FrequencyAnalysisDialog(QDialog):
             plot,
             self._reference_title("Phasen", target_hz, measured_hz),
             "Phase [°]",
-            "",
+            "Phase",
         )
         phases = [A_phase, B_phase, r_phase]
         labels = ["A", "B", "r"]
@@ -1317,19 +1571,22 @@ class FrequencyAnalysisDialog(QDialog):
     def _plot_reference_pressure_limits(self, plot, item, target_hz, measured_hz):
         p_max = self._json_value(item, "p_max_uv")
         p_min = self._json_value(item, "p_min_uv")
-        max_uv = max(p_max, p_min, 1.0)
+        scaled_values, unit = self._scale_microvolt_values([p_max, p_min])
+        p_max = float(scaled_values[0])
+        p_min = float(scaled_values[1])
+        max_value = max(p_max, p_min, 1.0)
         self._prepare_reference_plot(
             plot,
             self._reference_title("p_max / p_min", target_hz, measured_hz),
-            "Amplitude [µV]",
-            "",
+            f"Amplitude [{unit}]",
+            "Druckgrenze",
         )
         plot.addItem(pg.BarGraphItem(x=[p_max / 2.0], y=[1.0], width=p_max, height=0.45, brush=pg.mkBrush("r")))
         plot.addItem(pg.BarGraphItem(x=[p_min / 2.0], y=[0.0], width=p_min, height=0.45, brush=pg.mkBrush("g")))
-        plot.plot([p_max], [1.0], pen=None, symbol="o", symbolBrush="r", name=f"p_max = {p_max:.3f} µV")
-        plot.plot([p_min], [0.0], pen=None, symbol="o", symbolBrush="g", name=f"p_min = {p_min:.3f} µV")
+        plot.plot([p_max], [1.0], pen=None, symbol="o", symbolBrush="r", name=f"p_max = {p_max:.3f} {unit}")
+        plot.plot([p_min], [0.0], pen=None, symbol="o", symbolBrush="g", name=f"p_min = {p_min:.3f} {unit}")
         plot.getAxis("left").setTicks([[(1.0, "p_max"), (0.0, "p_min")]])
-        plot.setXRange(0.0, max_uv * 1.15, padding=0)
+        plot.setXRange(0.0, max_value * 1.15, padding=0)
         plot.setYRange(-0.7, 1.7, padding=0)
 
     def show_wave_data_dialog(self):
@@ -1358,9 +1615,9 @@ class FrequencyAnalysisDialog(QDialog):
         B = complex(wave["B"])
         A_abs = float(wave["A_abs"])
         B_abs = float(wave["B_abs"])
-        gamma = float(abs(wave.get("r_abs", item.get("B_over_A", B_abs / (A_abs + 1e-30)))))
-        R = float(wave.get("reflection_energy", gamma**2))
-        D = float(wave.get("dissipation", 1.0 - R))
+        gamma = min(float(abs(wave.get("r_abs", item.get("B_over_A", B_abs / (A_abs + 1e-30))))), 1.0)
+        R = gamma**2
+        D = max(1.0 - R, 0.0)
         residual = float(wave.get("residual", item.get("residual", 0.0)))
         wavelength = SPEED_OF_SOUND / f0 if f0 > 0 else 0.0
         wave_number = 2.0 * np.pi / wavelength if wavelength > 0 else 0.0
@@ -1739,8 +1996,8 @@ class FrequencyAnalysisDialog(QDialog):
             0.0,
             1.0,
         ))
-        gamma = float(abs(item.get("B_over_A", item.get("r_abs", np.sqrt(R)))))
-        if gamma >= 1.0:
+        gamma = min(float(abs(item.get("B_over_A", item.get("r_abs", np.sqrt(R))))), 1.0)
+        if gamma >= 0.999:
             swr = np.inf
             swr_plot_value = 20.0
             swr_label = "∞"
@@ -2152,18 +2409,25 @@ class GeneratorScreen(QWidget):
         top_layout.addStretch()
         main_layout.addLayout(top_layout)
 
-        title = QLabel("Hardware-Generator Steuerung")
+        title = QLabel("Generator Steuerung")
         title.setStyleSheet("font-size: 24px; font-weight: bold; margin: 20px 0;")
         main_layout.addWidget(title)
 
-        group = QGroupBox("Agilent 33120A")
+        self.generator_group = QGroupBox("Simulierter Generator")
         group_layout = QVBoxLayout()
 
         row1 = QHBoxLayout()
-        self.resource_edit = QLineEdit("GPIB0::12::INSTR")
+        self.generator_mode_combo = QComboBox()
+        self.generator_mode_combo.addItems([GENERATOR_MODE_SIMULATION, GENERATOR_MODE_AGILENT])
+        self.generator_mode_combo.setCurrentText(
+            GENERATOR_MODE_SIMULATION if USE_SIMULATED_GENERATOR else GENERATOR_MODE_AGILENT
+        )
+        self.resource_edit = QLineEdit("SIM" if USE_SIMULATED_GENERATOR else "GPIB0::12::INSTR")
         self.gen_connect_button = QPushButton("Verbinden")
         self.gen_id_button = QPushButton("ID lesen")
 
+        row1.addWidget(QLabel("Modus"))
+        row1.addWidget(self.generator_mode_combo)
         row1.addWidget(QLabel("Ressource"))
         row1.addWidget(self.resource_edit)
         row1.addWidget(self.gen_connect_button)
@@ -2194,8 +2458,8 @@ class GeneratorScreen(QWidget):
         group_layout.addLayout(row1)
         group_layout.addLayout(row2)
         group_layout.addLayout(row3)
-        group.setLayout(group_layout)
-        main_layout.addWidget(group)
+        self.generator_group.setLayout(group_layout)
+        main_layout.addWidget(self.generator_group)
 
         main_layout.addWidget(QLabel("Log:"))
         self.log_box = QTextEdit()
@@ -2205,8 +2469,10 @@ class GeneratorScreen(QWidget):
 
         main_layout.addStretch()
         self.setLayout(main_layout)
+        self._on_generator_mode_changed()
 
     def _connect_signals(self):
+        self.generator_mode_combo.currentTextChanged.connect(self._on_generator_mode_changed)
         self.gen_connect_button.clicked.connect(self.connect_generator)
         self.gen_id_button.clicked.connect(self.read_generator_id)
         self.gen_sine_button.clicked.connect(self.set_generator_sine)
@@ -2219,15 +2485,27 @@ class GeneratorScreen(QWidget):
     def log(self, text):
         self.log_box.append(text)
 
+    def _using_simulated_generator(self):
+        return self.generator_mode_combo.currentText().strip() == GENERATOR_MODE_SIMULATION
+
+    def _on_generator_mode_changed(self):
+        simulation = self._using_simulated_generator()
+        self.generator_group.setTitle("Simulierter Generator" if simulation else "Agilent 33120A")
+        self.resource_edit.setEnabled(not simulation)
+        self.resource_edit.setText("SIM" if simulation else "GPIB0::12::INSTR")
+
     def connect_generator(self):
         try:
             resource = self.resource_edit.text().strip()
 
-            if not resource:
+            if not resource and not self._using_simulated_generator():
                 raise ValueError("Bitte GPIB-Ressource eingeben.")
 
-            if USE_SIMULATED_GENERATOR:
-                self.generator = SimulatedGenerator()
+            if self._using_simulated_generator():
+                self.generator = SimulatedGenerator(
+                    start_frequency_hz=float(self.freq_edit.text()),
+                    start_voltage_v=float(self.amp_edit.text()),
+                )
                 self.generator.connect()
                 self.log("Simulierter Generator verbunden.")
             else:
@@ -2379,7 +2657,7 @@ class SignalAnalysisScreen(QWidget):
 
         self.source_combo = QComboBox()
         self.source_combo.addItems([SOURCE_SIMULATION, SOURCE_SCARLETT])
-        self.source_combo.setCurrentText(SOURCE_SCARLETT)
+        self.source_combo.setCurrentText(SOURCE_SIMULATION)
 
         self.sample_rate_combo = QComboBox()
         self.sample_rate_combo.addItems(["44100", "48000", "88200", "96000"])
@@ -2532,7 +2810,7 @@ class SignalAnalysisScreen(QWidget):
             with open(file_path, "r", encoding="utf-8") as file:
                 payload = json.load(file)
 
-            if not payload.get("frequencies"):
+            if not payload.get("frequencies") and not payload.get("experiments"):
                 raise ValueError("Die JSON-Datei enthält keine Frequenzdaten.")
 
             self.frequency_analysis_dialog = FrequencyAnalysisDialog(parent=self)
@@ -3501,7 +3779,7 @@ class MainWindow(QWidget):
     @staticmethod
     def _swr_from_reflection_factor(reflection_factor):
         reflection_factor = float(reflection_factor)
-        if reflection_factor >= 1.0:
+        if reflection_factor >= 0.999:
             return None
         return float((1.0 + reflection_factor) / (1.0 - reflection_factor))
 
@@ -3515,9 +3793,9 @@ class MainWindow(QWidget):
 
         A_abs = float(wave["A_abs"])
         B_abs = float(wave["B_abs"])
-        reflection_factor = float(wave.get("r_abs", item.get("B_over_A", 0.0)))
-        reflection_energy = float(wave.get("reflection_energy", reflection_factor**2))
-        dissipation = float(wave.get("dissipation", 1.0 - reflection_energy))
+        reflection_factor = min(float(wave.get("r_abs", item.get("B_over_A", 0.0))), 1.0)
+        reflection_energy = reflection_factor**2
+        dissipation = max(1.0 - reflection_energy, 0.0)
         wavelength = SPEED_OF_SOUND / frequency
         wave_number = 2.0 * np.pi / wavelength
 
@@ -3527,18 +3805,70 @@ class MainWindow(QWidget):
             steps.append({
                 "step": int(step.get("step", len(steps) + 1)),
                 "generator_voltage_v": float(step.get("voltage", item.get("voltage", 0.0))),
+                "generator_voltage_before_regulation_v": float(step.get(
+                    "voltage_before_regulation",
+                    step.get("voltage", item.get("voltage", 0.0)),
+                )),
+                "generator_voltage_after_regulation_v": float(step.get(
+                    "voltage_after_regulation",
+                    step.get("voltage", item.get("voltage", 0.0)),
+                )),
                 "measured_A_abs_v": float(step.get("measured_A_abs", step_wave.get("A_abs", A_abs))),
                 "relative_error": float(step.get("relative_error", 0.0)),
                 "target_reached": bool(step.get("ok", item.get("target_reached", True))),
             })
 
+        first_step = steps[0] if steps else {}
+        last_step = steps[-1] if steps else {}
+        voltage_before = float(item.get(
+            "voltage_before_regulation",
+            first_step.get("generator_voltage_before_regulation_v", item.get("voltage", 0.0)),
+        ))
+        voltage_after = float(item.get(
+            "voltage_after_regulation",
+            last_step.get("generator_voltage_after_regulation_v", item.get("voltage", 0.0)),
+        ))
+        A_abs_before = float(item.get(
+            "A_abs_before_regulation",
+            first_step.get("measured_A_abs_v", A_abs),
+        ))
+        A_abs_after = float(item.get(
+            "A_abs_after_regulation",
+            last_step.get("measured_A_abs_v", A_abs),
+        ))
+        relative_error_before = float(first_step.get("relative_error", 0.0))
+        relative_error_after = float(last_step.get("relative_error", 0.0))
+        regulation = {
+            "enabled": bool(item.get("regulation_enabled", "target_reached" in item)),
+            "target_amp_v": float(TARGET_AMP),
+            "target_amp_uv": float(TARGET_AMP) * 1e6,
+            "tolerance": float(AMP_TOLERANCE),
+            "tolerance_percent": float(AMP_TOLERANCE) * 100.0,
+            "target_reached": bool(item.get("target_reached", True)),
+            "steps_count": len(steps),
+            "amplitude_before_v": A_abs_before,
+            "amplitude_before_uv": A_abs_before * 1e6,
+            "amplitude_after_v": A_abs_after,
+            "amplitude_after_uv": A_abs_after * 1e6,
+            "relative_error_before": relative_error_before,
+            "relative_error_after": relative_error_after,
+            "generator_voltage_before_v": voltage_before,
+            "generator_voltage_after_v": voltage_after,
+        }
+
         return {
             "frequency_hz": frequency,
-            "generator_voltage_v": float(item.get("voltage", steps[-1]["generator_voltage_v"] if steps else 0.0)),
+            "generator_voltage_v": voltage_after,
+            "generator_voltage_before_regulation_v": voltage_before,
+            "generator_voltage_after_regulation_v": voltage_after,
             "A": self._complex_to_json(wave["A"]),
             "B": self._complex_to_json(wave["B"]),
             "A_abs_v": A_abs,
             "A_abs_uv": A_abs * 1e6,
+            "A_abs_before_regulation_v": A_abs_before,
+            "A_abs_before_regulation_uv": A_abs_before * 1e6,
+            "A_abs_after_regulation_v": A_abs_after,
+            "A_abs_after_regulation_uv": A_abs_after * 1e6,
             "A_phase_rad": float(wave["A_phase"]),
             "A_phase_deg": float(np.degrees(float(wave["A_phase"]))),
             "B_abs_v": B_abs,
@@ -3563,6 +3893,7 @@ class MainWindow(QWidget):
             "wave_number_rad_per_m": float(wave_number),
             "residual": float(wave.get("residual", item.get("residual", 0.0))),
             "target_reached": bool(item.get("target_reached", True)),
+            "regulation": regulation,
             "steps": steps,
         }
 
@@ -3570,12 +3901,41 @@ class MainWindow(QWidget):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         export_dir = Path(__file__).resolve().parents[2] / "sweep_exports"
         export_dir.mkdir(parents=True, exist_ok=True)
-        path = export_dir / f"{mode}_sweep_{timestamp}.json"
+        if mode == "automatic":
+            tolerance_label = f"{AMP_TOLERANCE * 100.0:.1f}".replace(".", "p")
+            filename = f"konvention_regelung_toleranz_{tolerance_label}pct_{timestamp}.json"
+        else:
+            filename = f"{mode}_sweep_{timestamp}.json"
+        path = export_dir / filename
+        frequencies_json = [
+            self._build_sweep_frequency_json(item)
+            for item in sweep_results
+        ]
+        regulation_summary = {
+            "enabled": mode == "automatic",
+            "name": "regelung_toleranz",
+            "target_amp_v": float(TARGET_AMP),
+            "target_amp_uv": float(TARGET_AMP) * 1e6,
+            "tolerance": float(AMP_TOLERANCE),
+            "tolerance_percent": float(AMP_TOLERANCE) * 100.0,
+            "min_generator_voltage_v": float(MIN_GENERATOR_VOLTAGE),
+            "max_generator_voltage_v": float(MAX_GENERATOR_VOLTAGE),
+            "max_auto_steps": int(MAX_AUTO_STEPS),
+            "frequencies": [
+                {
+                    "frequency_hz": item["frequency_hz"],
+                    **item["regulation"],
+                }
+                for item in frequencies_json
+            ],
+        }
 
         payload = {
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "mode": mode,
             "purpose": "Referenzdaten für späteren Vergleich",
+            "file_convention": "konvention_regelung_toleranz",
+            "regulation": regulation_summary,
             "settings": {
                 "duration_s": float(duration),
                 "start_voltage_v": float(start_voltage),
@@ -3598,10 +3958,7 @@ class MainWindow(QWidget):
                 "calibration": {str(key): float(value) for key, value in CALIBRATION.items()},
                 "num_channels": int(NUM_CHANNELS),
             },
-            "frequencies": [
-                self._build_sweep_frequency_json(item)
-                for item in sweep_results
-            ],
+            "frequencies": frequencies_json,
         }
 
         with path.open("w", encoding="utf-8") as file:
@@ -3677,12 +4034,24 @@ class MainWindow(QWidget):
                 )
 
                 for step_item in sweep_item["step_results"]:
+                    voltage_before = float(step_item.get("voltage_before_regulation", step_item["voltage"]))
+                    voltage_after = float(step_item.get("voltage_after_regulation", step_item["voltage"]))
                     self.signal_screen.log(
                         f"Schritt {step_item['step']}: "
-                        f"U = {step_item['voltage']:.4f} V, "
+                        f"U vor = {voltage_before:.4f} V, "
+                        f"U nach = {voltage_after:.4f} V, "
                         f"|A| = {format_voltage(step_item['measured_A_abs'])}, "
                         f"Fehler = {step_item['relative_error']:.3f}"
                     )
+
+                first_step = sweep_item["step_results"][0]
+                last_step = sweep_item["step_results"][-1]
+                self.signal_screen.log(
+                    f"Regelung: alte |A| = {format_voltage(first_step['measured_A_abs'])}, "
+                    f"neue |A| = {format_voltage(last_step['measured_A_abs'])}, "
+                    f"U vor = {float(first_step.get('voltage_before_regulation', first_step['voltage'])):.4f} V, "
+                    f"U nach = {float(last_step.get('voltage_after_regulation', last_step['voltage'])):.4f} V"
+                )
 
                 if sweep_item["target_reached"]:
                     self.signal_screen.log(

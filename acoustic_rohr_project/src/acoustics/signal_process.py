@@ -263,11 +263,11 @@ def compute_forward_reflected_results(
     A0 = A[0]
     B0 = B[0]
     r_complex = B0 / A0
-    r_abs = float(np.abs(r_complex))
+    r_abs = min(float(np.abs(r_complex)), 1.0)
     r_phase = float(np.angle(r_complex))
 
     R = r_abs**2
-    D = 1.0 - R
+    D = max(1.0 - R, 0.0)
 
     return {
         "A": A0,
