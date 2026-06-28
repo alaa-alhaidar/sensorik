@@ -22,6 +22,10 @@ def amplitude_reached_target(measured_amp, target_amp, tolerance):
     return abs(relative_error) <= tolerance, relative_error
 
 
+def is_clipping_error(error):
+    return "Clipping-Gefahr" in str(error)
+
+
 def run_auto_measurement_steps(
     generator,
     f0,
@@ -53,7 +57,21 @@ def run_auto_measurement_steps(
     for step in range(1, max_steps + 1):
         generator.set_output(f0, voltage)
 
-        measurement_result = measure_once(duration, f0)
+        try:
+            measurement_result = measure_once(duration, f0)
+        except ValueError as error:
+            if is_clipping_error(error) and results:
+                last_valid = results[-1]
+                last_valid["voltage_after_regulation"] = last_valid["voltage"]
+                last_valid["ok"] = False
+                last_valid["clipping_stopped"] = True
+                last_valid["clipping_message"] = str(error)
+                break
+            if is_clipping_error(error) and voltage > min_voltage:
+                voltage = min_voltage
+                continue
+            raise
+
         if measurement_result is None:
             raise RuntimeError("Messung fehlgeschlagen.")
 
@@ -93,20 +111,30 @@ def run_auto_measurement_steps(
             min_voltage,
             max_voltage,
         )
+
+        if step >= max_steps:
+            step_result["voltage_after_regulation"] = voltage
+            results.append(step_result)
+            break
+
         step_result["voltage_after_regulation"] = new_voltage
         results.append(step_result)
 
         # Wenn |A| zu groß ist und die berechnete Spannung unter das Minimum fällt,
         # dann nicht sofort abbrechen, sondern einmal mit Minimalspannung neu messen.
         if new_voltage <= min_voltage and measured_A_abs > target_amp:
+            if voltage <= min_voltage:
+                break
             voltage = min_voltage
             continue
 
         # Wenn |A| zu klein ist und die berechnete Spannung am Maximum liegt,
         # kann die Zielamplitude nicht erreicht werden.
         if new_voltage >= max_voltage and measured_A_abs < target_amp:
+            if voltage >= max_voltage:
+                break
             voltage = max_voltage
-            break
+            continue
 
         voltage = new_voltage
 
@@ -226,29 +254,35 @@ def run_automatic_frequency_sweep_steps(
 
         f0 = float(f0)
 
-        step_results = run_auto_measurement_steps(
-            generator=generator,
-            f0=f0,
-            start_voltage=voltage,
-            target_amp=target_amp,
-            tolerance=tolerance,
-            max_steps=max_steps,
-            min_voltage=min_voltage,
-            max_voltage=max_voltage,
-            duration=duration,
-            measure_once=measure_once,
-            compute_wave=compute_wave,
-        )
+        try:
+            step_results = run_auto_measurement_steps(
+                generator=generator,
+                f0=f0,
+                start_voltage=voltage,
+                target_amp=target_amp,
+                tolerance=tolerance,
+                max_steps=max_steps,
+                min_voltage=min_voltage,
+                max_voltage=max_voltage,
+                duration=duration,
+                measure_once=measure_once,
+                compute_wave=compute_wave,
+            )
+        except ValueError as error:
+            if is_clipping_error(error):
+                voltage = float(min_voltage)
+                continue
+            raise
 
         if not step_results:
-            raise RuntimeError(f"Keine Messung bei {f0:.1f} Hz erhalten.")
+            continue
 
         last = step_results[-1]
         first = step_results[0]
         wave = last["wave"]
 
         # Gefundene Spannung als Startwert für nächste Frequenz übernehmen.
-        voltage = float(last["voltage"])
+        voltage = float(last.get("voltage_after_regulation", last["voltage"]))
 
         frequency_result = {
             "frequency": f0,

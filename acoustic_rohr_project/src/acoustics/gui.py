@@ -77,9 +77,9 @@ TARGET_AMP = 0.0150 V  = 15 mV   = 15000 µV
 TARGET_AMP = 0.1500 V  = 150 mV  = 150000 µV
 
 '''
-TARGET_AMP = 0.0002 # Simulation: 0.2 mV. Im Labor ggf. 0.05 bis 0.15 V.
-AMP_TOLERANCE = 0.010
-MAX_AUTO_STEPS = 10
+TARGET_AMP = 0.25 # Simulation: 0.2 mV. Im Labor ggf. 0.05 von 1 V also 50 mV bis 0.15 V = 150 mV.
+AMP_TOLERANCE = 0.00
+MAX_AUTO_STEPS = 15
 MIN_GENERATOR_VOLTAGE = 0.05 # 0.05 50 mV
 MAX_GENERATOR_VOLTAGE = 1.0
 AUTO_STEP_PAUSE_SECONDS = 2.0
@@ -637,6 +637,10 @@ class AutomationAnalysisDialog(QDialog):
         self.voltages = []
         self.voltages_before = []
         self.voltages_after = []
+        self.target_reached = []
+        self.relative_error_after_percent = []
+        self.steps_count = []
+        self.auto_regulation_runs = []
 
         layout = QVBoxLayout(self)
 
@@ -650,6 +654,11 @@ class AutomationAnalysisDialog(QDialog):
         self.voltage_data_button.setMaximumWidth(220)
         self.voltage_data_button.clicked.connect(self.show_voltage_data_dialog)
         top_layout.addWidget(self.voltage_data_button)
+        self.auto_regulation_run_combo = QComboBox()
+        self.auto_regulation_run_combo.setMinimumWidth(360)
+        self.auto_regulation_run_combo.currentIndexChanged.connect(self._refresh_auto_regulation_json_run)
+        self.auto_regulation_run_combo.hide()
+        top_layout.addWidget(self.auto_regulation_run_combo)
         layout.addLayout(top_layout)
 
         ab_box = QGroupBox("Hinlaufende Welle über Frequenz")
@@ -665,7 +674,7 @@ class AutomationAnalysisDialog(QDialog):
             symbolSize=6,
             symbolBrush=pg.mkBrush(180, 180, 180),
             symbolPen=pg.mkPen(180, 180, 180),
-            name="alte |A| vor Regelung"
+            name="|A| vor Regelung"
         )
         self.a_curve = self.ab_plot.plot(
             [], [],
@@ -674,7 +683,7 @@ class AutomationAnalysisDialog(QDialog):
             symbolSize=7,
             symbolBrush="r",
             symbolPen=pg.mkPen("r"),
-            name="neue |A| nach Regelung"
+            name="|A| nach Regelung"
         )
 
         self.tolerance_band = pg.LinearRegionItem(
@@ -686,7 +695,7 @@ class AutomationAnalysisDialog(QDialog):
         )
         self.tolerance_band.setZValue(-10)
         self.ab_plot.addItem(self.tolerance_band)
-        self.ab_plot.plot(
+        self.tolerance_legend_curve = self.ab_plot.plot(
             [],
             [],
             pen=pg.mkPen(230, 190, 0, width=8),
@@ -704,7 +713,7 @@ class AutomationAnalysisDialog(QDialog):
         self.ab_plot.addItem(self.target_line)
         ab_layout.addWidget(self.ab_plot)
 
-        voltage_box = QGroupBox("Benötigte Generator-Spannung je Frequenz")
+        voltage_box = QGroupBox("Generatorspannung vor und nach der Regelung")
         voltage_box.setAlignment(Qt.AlignHCenter)
         voltage_layout = QVBoxLayout(voltage_box)
         self.voltage_plot = pg.PlotWidget(background="w")
@@ -729,8 +738,8 @@ class AutomationAnalysisDialog(QDialog):
             lambda: (
                 self.frequencies,
                 [
-                    ("alte |A|", self.a_abs_before_uv, " mV"),
-                    ("neue |A|", self.a_abs_after_uv, " mV"),
+                    ("|A| vor", self.a_abs_before_uv, " mV"),
+                    ("|A| nach", self.a_abs_after_uv, " mV"),
                 ],
             ),
         )
@@ -774,14 +783,17 @@ class AutomationAnalysisDialog(QDialog):
         layout = QVBoxLayout(dialog)
 
         table = QTableWidget()
-        table.setColumnCount(5)
+        table.setColumnCount(8)
         table.setRowCount(len(self.frequencies))
         table.setHorizontalHeaderLabels([
             "Frequenz [Hz]",
-            "alte |A| [mV]",
-            "neue |A| [mV]",
+            "|A| vor [mV]",
+            "|A| nach [mV]",
             "U vor Regelung [V]",
             "U nach Regelung [V]",
+            "Ziel erreicht",
+            "Fehler nachher [%]",
+            "Schritte",
         ])
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -795,6 +807,9 @@ class AutomationAnalysisDialog(QDialog):
                 f"{float(self.a_abs_after_uv[row]):.4f}",
                 f"{float(self.voltages_before[row]):.4f}",
                 f"{float(self.voltages_after[row]):.4f}",
+                "ja" if row < len(self.target_reached) and self.target_reached[row] else "nein",
+                f"{float(self.relative_error_after_percent[row]):.2f}" if row < len(self.relative_error_after_percent) else "",
+                f"{int(self.steps_count[row])}" if row < len(self.steps_count) else "",
             ]
             for column, value in enumerate(row_values):
                 table_item = QTableWidgetItem(value)
@@ -830,10 +845,109 @@ class AutomationAnalysisDialog(QDialog):
         self.voltages.clear()
         self.voltages_before.clear()
         self.voltages_after.clear()
+        self.target_reached.clear()
+        self.relative_error_after_percent.clear()
+        self.steps_count.clear()
         self.a_before_curve.setData([], [])
         self.a_curve.setData([], [])
         self.voltage_before_curve.setData([], [])
         self.voltage_curve.setData([], [])
+
+    def _set_target_and_tolerance(self, target_amp_v, tolerance):
+        self.target_amp_uv = float(target_amp_v) * 1e3
+        self.tolerance = float(tolerance)
+        self.lower_tolerance_uv = self.target_amp_uv * (1.0 - self.tolerance)
+        self.upper_tolerance_uv = self.target_amp_uv * (1.0 + self.tolerance)
+        self.tolerance_band.setRegion((self.lower_tolerance_uv, self.upper_tolerance_uv))
+        self.target_line.setValue(self.target_amp_uv)
+        if hasattr(self.target_line, "label"):
+            self.target_line.label.setText(f"Ziel |A| = {self.target_amp_uv:.1f} mV")
+        self._update_legend_item_name(
+            self.ab_plot,
+            self.tolerance_legend_curve,
+            f"Toleranzbereich ±{self.tolerance * 100.0:.1f} %",
+        )
+
+    @staticmethod
+    def _update_legend_item_name(plot, item, name):
+        item.opts["name"] = name
+        legend = plot.getPlotItem().legend
+        if legend is None:
+            return
+        try:
+            legend.removeItem(item)
+        except Exception:
+            pass
+        legend.addItem(item, name)
+
+    @staticmethod
+    def _auto_regulation_run_label(run):
+        tolerance_percent = run.get("tolerance_percent")
+        if tolerance_percent is None:
+            tolerance_percent = float(run.get("tolerance", 0.0)) * 100.0
+        source_file = run.get("source_file", "")
+        return f"Toleranz {float(tolerance_percent):.1f} % - {source_file}"
+
+    def set_auto_regulation_json_data(self, payload, file_path=None):
+        runs = payload.get("runs", [])
+        if not runs:
+            raise ValueError("Die Auto-Regelungs-JSON enthält keine Läufe.")
+
+        self.auto_regulation_runs = runs
+        self.auto_regulation_run_combo.blockSignals(True)
+        self.auto_regulation_run_combo.clear()
+        for index, run in enumerate(runs):
+            self.auto_regulation_run_combo.addItem(self._auto_regulation_run_label(run), index)
+        self.auto_regulation_run_combo.blockSignals(False)
+        self.auto_regulation_run_combo.show()
+        self.setWindowTitle("Auto-Regelung aus JSON")
+        self._refresh_auto_regulation_json_run()
+
+    def _refresh_auto_regulation_json_run(self, *_args):
+        if not self.auto_regulation_runs:
+            return
+
+        index = self.auto_regulation_run_combo.currentData()
+        if index is None:
+            index = 0
+        run = self.auto_regulation_runs[int(index)]
+        self.clear_data()
+        self._set_target_and_tolerance(
+            run.get("target_amp_v", run.get("target_amp_uv", self.target_amp_uv) / 1e6),
+            run.get("tolerance", 0.0),
+        )
+        for item in run.get("frequencies", []):
+            if item.get("enabled", True):
+                self._append_auto_regulation_frequency_json(item)
+
+        self.ab_plot.setTitle("")
+        self.voltage_plot.setTitle("")
+
+    def _append_auto_regulation_frequency_json(self, item):
+        frequency = float(item.get("frequency_hz", item.get("frequency", 0.0)))
+        amplitude_before_mv = float(item.get(
+            "amplitude_before_v",
+            item.get("amplitude_before_uv", 0.0) / 1e6,
+        )) * 1e3
+        amplitude_after_mv = float(item.get(
+            "amplitude_after_v",
+            item.get("amplitude_after_uv", 0.0) / 1e6,
+        )) * 1e3
+        voltage_before = float(item.get("generator_voltage_before_v", 0.0))
+        voltage_after = float(item.get("generator_voltage_after_v", voltage_before))
+
+        self.frequencies.append(frequency)
+        self.a_abs_uv.append(amplitude_after_mv)
+        self.a_abs_before_uv.append(amplitude_before_mv)
+        self.a_abs_after_uv.append(amplitude_after_mv)
+        self.voltages.append(voltage_after)
+        self.voltages_before.append(voltage_before)
+        self.voltages_after.append(voltage_after)
+        self.target_reached.append(bool(item.get("target_reached", False)))
+        self.relative_error_after_percent.append(abs(float(item.get("relative_error_after", 0.0))) * 100.0)
+        self.steps_count.append(int(item.get("steps_count", 0)))
+
+        self._refresh_curves()
 
     def append_frequency_result(self, item):
         steps = item.get("step_results") or []
@@ -863,7 +977,13 @@ class AutomationAnalysisDialog(QDialog):
         self.voltages.append(voltage_after)
         self.voltages_before.append(voltage_before)
         self.voltages_after.append(voltage_after)
+        self.target_reached.append(bool(item.get("target_reached", False)))
+        self.relative_error_after_percent.append(abs(float(item.get("relative_error_after", 0.0))) * 100.0)
+        self.steps_count.append(int(item.get("steps_count", len(steps))))
 
+        self._refresh_curves()
+
+    def _refresh_curves(self):
         x = np.asarray(self.frequencies, dtype=float)
         self.a_before_curve.setData(x, np.asarray(self.a_abs_before_uv, dtype=float))
         self.a_curve.setData(x, np.asarray(self.a_abs_after_uv, dtype=float))
@@ -1355,8 +1475,8 @@ class FrequencyAnalysisDialog(QDialog):
             ], dtype=float)
             plot.plot(x, voltage_before, pen=pg.mkPen(120, 120, 120, width=2, style=Qt.DashLine), symbol="o", symbolSize=5, name="U vor")
             plot.plot(x, voltage_after, pen=pg.mkPen("b", width=3), symbol="o", symbolSize=5, name="U nach")
-            plot.plot(x, amplitude_before, pen=pg.mkPen(255, 160, 0, width=2, style=Qt.DashLine), symbol="o", symbolSize=5, name="alte |A|")
-            plot.plot(x, amplitude_after, pen=pg.mkPen("r", width=3), symbol="o", symbolSize=5, name="neue |A|")
+            plot.plot(x, amplitude_before, pen=pg.mkPen(255, 160, 0, width=2, style=Qt.DashLine), symbol="o", symbolSize=5, name="|A| vor")
+            plot.plot(x, amplitude_after, pen=pg.mkPen("r", width=3), symbol="o", symbolSize=5, name="|A| nach")
             max_value = max(
                 float(np.max(voltage_before)),
                 float(np.max(voltage_after)),
@@ -1535,8 +1655,8 @@ class FrequencyAnalysisDialog(QDialog):
         values = [
             ("U vor", voltage_before, pg.mkBrush(120, 120, 120)),
             ("U nach", voltage_after, pg.mkBrush("b")),
-            ("alte |A|", amplitude_before, pg.mkBrush(255, 160, 0)),
-            ("neue |A|", amplitude_after, pg.mkBrush("r")),
+            ("|A| vor", amplitude_before, pg.mkBrush(255, 160, 0)),
+            ("|A| nach", amplitude_after, pg.mkBrush("r")),
         ]
         y_positions = [3.0, 2.0, 1.0, 0.0]
         for (label, value, brush), y_position in zip(values, y_positions):
@@ -2810,6 +2930,18 @@ class SignalAnalysisScreen(QWidget):
             with open(file_path, "r", encoding="utf-8") as file:
                 payload = json.load(file)
 
+            if payload.get("runs") and payload.get("file_type") == "combined_auto_regulation_results":
+                self.automation_analysis_dialog = AutomationAnalysisDialog(
+                    target_amp=TARGET_AMP,
+                    tolerance=AMP_TOLERANCE,
+                    parent=self,
+                )
+                self.automation_analysis_dialog.set_auto_regulation_json_data(payload, file_path)
+                self.automation_analysis_dialog.show()
+                self.automation_analysis_dialog.raise_()
+                self.automation_analysis_dialog.activateWindow()
+                return
+
             if not payload.get("frequencies") and not payload.get("experiments"):
                 raise ValueError("Die JSON-Datei enthält keine Frequenzdaten.")
 
@@ -4043,12 +4175,18 @@ class MainWindow(QWidget):
                         f"|A| = {format_voltage(step_item['measured_A_abs'])}, "
                         f"Fehler = {step_item['relative_error']:.3f}"
                     )
+                    if step_item.get("clipping_stopped"):
+                        self.signal_screen.log(
+                            "Clipping-Grenze erreicht: letzter gültiger Messwert "
+                            "wurde behalten, nächste Frequenz wird gemessen.",
+                            category="Warnung",
+                        )
 
                 first_step = sweep_item["step_results"][0]
                 last_step = sweep_item["step_results"][-1]
                 self.signal_screen.log(
-                    f"Regelung: alte |A| = {format_voltage(first_step['measured_A_abs'])}, "
-                    f"neue |A| = {format_voltage(last_step['measured_A_abs'])}, "
+                    f"Regelung: |A| vor = {format_voltage(first_step['measured_A_abs'])}, "
+                    f"|A| nach = {format_voltage(last_step['measured_A_abs'])}, "
                     f"U vor = {float(first_step.get('voltage_before_regulation', first_step['voltage'])):.4f} V, "
                     f"U nach = {float(last_step.get('voltage_after_regulation', last_step['voltage'])):.4f} V"
                 )
