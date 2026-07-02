@@ -1674,7 +1674,7 @@ class FrequencyAnalysisDialog(QDialog):
             plot,
             self._reference_title("Phasen", target_hz, measured_hz),
             "Phase [°]",
-            "Phase",
+            "",
         )
         phases = [A_phase, B_phase, r_phase]
         labels = ["A", "B", "r"]
