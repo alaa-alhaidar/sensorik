@@ -1515,8 +1515,8 @@ class FrequencyAnalysisDialog(QDialog):
         self._prepare_reference_plot(
             plot,
             self._reference_title("Reflexion / Dissipation", target_hz, measured_hz),
-            "Wert",
-            "Kennwert",
+            "",
+            "",
         )
         plot.addItem(pg.BarGraphItem(x=[R / 2.0], y=[1.0], width=R, height=0.45, brush=pg.mkBrush("b")))
         plot.addItem(pg.BarGraphItem(x=[D / 2.0], y=[0.0], width=D, height=0.45, brush=pg.mkBrush("r")))
