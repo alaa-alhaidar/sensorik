@@ -1,462 +1,428 @@
-Die gesamte Reihenfolge ist so:
 
-## 1. Start in der GUI
+# Akustisches Messsystem zur Bestimmung der hin- und rücklaufenden Welle
 
-Du hast zwei getrennte Abläufe:
+## Übersicht
 
-### Frequenzschleife
+Dieses Projekt dient zur Messung und Analyse von Schallwellen in einem Impedanzrohr mit drei Mikrofonen.
 
-* Frequenzen werden nacheinander durchlaufen.
-* Die Generator-Spannung bleibt konstant.
-* Jede Frequenz wird genau einmal gemessen.
-* Es gibt keine Anpassung auf (60,\mu V).
+Das Programm kann
 
-### Automation
+* Audiosignale über ein Focusrite Scarlett Audio-Interface aufnehmen,
+* einen Agilent 33120A Funktionsgenerator automatisch steuern,
+* komplexe Schalldruckamplituden der Mikrofone berechnen,
+* die hinlaufende und rücklaufende Welle bestimmen,
+* automatische Frequenzmessungen durchführen,
+* die Generator-Spannung automatisch nachregeln, um eine konstante Schalldruckamplitude der hinlaufenden Welle zu erzeugen,
+* sämtliche Ergebnisse grafisch darstellen und speichern.
 
-* Frequenzen werden ebenfalls nacheinander durchlaufen.
-* Bei jeder Frequenz wird die Generator-Spannung angepasst.
-* Ziel ist:
-
-[
-|A| = 60,\mu V
-]
-
-* Danach wird die gefundene Spannung für diese Frequenz gespeichert.
+Das System kann sowohl mit echter Hardware als auch vollständig simuliert betrieben werden.
 
 ---
 
-# 2. Generator setzt Frequenz und Spannung
+# Projektstruktur
 
-Für jeden Frequenzpunkt wird ausgeführt:
-
-```python
-generator.set_output(f0, voltage)
 ```
-
-Das bedeutet:
-
-[
-f_0 \rightarrow \text{Generatorfrequenz}
-]
-
-[
-U \rightarrow \text{Generatorspannung}
-]
-
-Bei der normalen Frequenzschleife bleibt (U) gleich.
-
-Bei der Automation wird (U) mehrfach verändert, bis (|A|) im Toleranzbereich liegt. 
-
----
-
-# 3. Signalaufnahme
-
-Danach werden die drei Mikrofonsignale aufgenommen:
-
-[
-p_1(t),\quad p_2(t),\quad p_3(t)
-]
-
-Bei der echten Messung kommen diese Signale von der Focusrite.
-
-Bei der Simulation werden sie künstlich erzeugt.
-
-Die Aufnahme hat die Form:
-
-```python
-signal.shape = (samples, 3)
-```
-
-Also:
-
-```text
-Zeitpunkt 1: M1, M2, M3
-Zeitpunkt 2: M1, M2, M3
-Zeitpunkt 3: M1, M2, M3
-...
+gui.py
+│
+├── generator_hdw_panel.py
+│      Steuerung des Agilent 33120A
+│
+├── simulated_generator.py
+│      Generator für Simulation
+│
+├── focusrite_interface.py
+│      Aufnahme über Focusrite Scarlett
+│
+├── signal_process.py
+│      Signalverarbeitung
+│
+├── estimation.py
+│      Berechnung von A und B
+│
+├── automation.py
+│      automatische Regelung
+│
+├── compensation.py
+│      Verstärkung/Kompensation
+│
+├── metrics.py
+│      Hilfsfunktionen
+│
+└── Testprogramme
 ```
 
 ---
 
-# 4. Kalibrierung
+# Programmablauf
 
-Jeder Mikrofonkanal wird mit seinem Kalibrierfaktor multipliziert:
+## 1. Programmstart
 
-```python
-signal[:, ch] *= CALIBRATION[ch + 1]
+Das Projekt wird über
+
+```bash
+python gui.py
 ```
 
-Dadurch werden die aufgenommenen digitalen Werte auf die verwendete Spannungsskalierung gebracht. 
+gestartet.
+
+Die GUI ist der zentrale Einstiegspunkt und verbindet alle Module.
 
 ---
 
-# 5. Bekannte Messfrequenz (f_0)
+# 2. Auswahl der Signalquelle
 
-Beim Sweep und bei der Automation ist (f_0) bereits bekannt.
+Es stehen zwei Betriebsarten zur Verfügung.
 
-Beispiel:
+### Simulation
 
-```text
-300 Hz
-350 Hz
-400 Hz
-...
-1950 Hz
+Es werden künstliche Mikrofonsignale erzeugt.
+
+```
+SimulatedGenerator
 ```
 
-Die FFT muss die Frequenz dann nicht erst suchen.
-
-Sie dient hauptsächlich zur Kontrolle:
-
-* liegt der Peak tatsächlich bei (f_0)?
-* gibt es Rauschen?
-* gibt es Oberwellen?
+Diese Betriebsart dient zur Entwicklung ohne Laborhardware.
 
 ---
 
-# 6. Komplexe Amplitude jedes Mikrofons
+### Hardware
 
-Aus jedem Zeitsignal wird die komplexe Amplitude genau bei (f_0) bestimmt:
+Im Labor werden verwendet
 
-[
-P_i(f_0)
-========
+* Agilent 33120A
+* Focusrite Scarlett
+* drei Mikrofone
 
-\frac{2}{\sum w[n]}
-\sum_n p_i[n],w[n],e^{-j2\pi f_0n/f_s}
-]
+---
 
-Damit erhältst du:
+# 3. Verbindung mit dem Generator
 
-[
-P_1,\quad P_2,\quad P_3
-]
+Beim Start wird der Generator verbunden.
 
-Jeder Wert ist komplex:
+```
+Generator verbinden
+        │
+        ▼
+Agilent33120A.connect()
+        │
+        ▼
+ID des Gerätes lesen
+```
 
-[
-P_i = \operatorname{Re}(P_i)+j\operatorname{Im}(P_i)
-]
+Danach können
 
-Daraus folgen:
+* Frequenz
+* Spannung
+* Sinusform
 
-[
-|P_i|
-]
+eingestellt werden.
+
+---
+
+# 4. Aufnahme des Signals
+
+Nach dem Start einer Messung erfolgt
+
+```
+Generator erzeugt Sinus
+          │
+          ▼
+Focusrite nimmt auf
+          │
+          ▼
+3 Kanäle werden gespeichert
+```
+
+Die Aufnahme erfolgt typischerweise mit
+
+* 48 kHz
+* 1 s Messdauer
+
+---
+
+# 5. Signalvorbereitung
+
+Vor der eigentlichen Berechnung werden die Signale geprüft.
+
+Dabei erfolgt
+
+* Prüfung der Kanalanzahl
+* Kalibrierung
+* Umwandlung in NumPy
+* Clippingkontrolle
+
+---
+
+# 6. Berechnung der komplexen Schalldrücke
+
+Für jedes Mikrofon wird die komplexe Schalldruckamplitude berechnet.
+
+Für jedes Mikrofon entstehen
+
+```
+P1
+P2
+P3
+```
+
+sowie
+
+* Betrag
+* Phase
+* RMS
+
+---
+
+# 7. Berechnung der Wellen
+
+Aus
+
+```
+P1
+P2
+P3
+```
+
+wird mittels Least-Squares
+
+```
+A
+```
+
+(hinlaufende Welle)
 
 und
 
-[
-\varphi_i=\arg(P_i)
-]
+```
+B
+```
 
-Das ist wichtig, weil für die Wellenzerlegung nicht nur der Betrag, sondern auch die Phase gebraucht wird. 
+(rücklaufende Welle)
 
----
+berechnet.
 
-# 7. FFT
-
-Parallel wird aus dem Zeitsignal die FFT berechnet:
+Hierzu wird das lineare Gleichungssystem
 
 [
-p_i(t)\rightarrow P_i(f)
-]
-
-Die FFT liefert für viele Frequenz-Bins komplexe Werte.
-
-Für den Plot wird meistens nur der Betrag beziehungsweise der Pegel gezeigt:
-
-[
-20\log_{10}
-\left(
-\frac{|P_i(f)|_\mathrm{RMS}}{1,\mu V}
-\right)
-]
-
-Beim Sweep ist diese FFT nicht die Grundlage für (A) und (B), sondern vor allem eine Kontrolle.
-
----
-
-# 8. Wellenmodell im Rohr
-
-Für jedes Mikrofon gilt:
-
-[
-P(x)=Ae^{-jkx}+Be^{jkx}
-]
-
-Dabei ist:
-
-* (A): hinlaufende Welle
-* (B): rücklaufende Welle
-* (k): Wellenzahl
-
-[
-k=\frac{2\pi f_0}{c}
-]
-
-Für drei Mikrofone entsteht:
-
-[
-\begin{bmatrix}
-P_1\
-P_2\
-P_3
-\end{bmatrix}
-=============
-
-\begin{bmatrix}
-e^{-jkx_1} & e^{jkx_1}\
-e^{-jkx_2} & e^{jkx_2}\
-e^{-jkx_3} & e^{jkx_3}
-\end{bmatrix}
+P=M\cdot
 \begin{bmatrix}
 A\
 B
 \end{bmatrix}
 ]
 
+gelöst.
+
 ---
 
-# 9. Least-Squares-Wellenzerlegung
+# 8. Darstellung
 
-Du hast drei Messungen, aber nur zwei Unbekannte:
+Die GUI zeigt anschließend
 
-[
-A,\quad B
-]
+* Zeitverlauf
+* FFT
+* komplexe Mikrofonwerte
+* Wellenzerlegung
+* Pegel
+* Ortsverlauf
+* dBµV-Darstellung
 
-Deshalb ist das System überbestimmt.
+---
 
-NumPy löst es mit:
+# Automatische Regelung
 
-```python
-solution, residuals, _, _ = np.linalg.lstsq(M, b, rcond=None)
+Die wichtigste Funktion des Projekts ist die automatische Regelung.
+
+Ziel ist
+
+> Für jede Frequenz soll die hinlaufende Welle dieselbe Amplitude besitzen.
+
+---
+
+## Ablauf
+
+Für jede Frequenz erfolgt
+
 ```
-
-Das Ergebnis ist:
-
-```python
-A = solution[0]
-B = solution[1]
-```
-
-Also komplexe Werte:
-
-[
-A=|A|e^{j\varphi_A}
-]
-
-[
-B=|B|e^{j\varphi_B}
-]
-
-
-
----
-
-# 10. Beträge von (A) und (B)
-
-Aus den komplexen Werten werden die Beträge berechnet:
-
-[
-|A|=\sqrt{\operatorname{Re}(A)^2+\operatorname{Im}(A)^2}
-]
-
-[
-|B|=\sqrt{\operatorname{Re}(B)^2+\operatorname{Im}(B)^2}
-]
-
-Diese Werte erscheinen im Graphen:
-
-```text
-A und B über Frequenz
-```
-
-Wichtig:
-
-[
-|A|,\ |B|
-]
-
-sind Amplituden.
-
-Die Leistung beziehungsweise Energie ist proportional zum Quadrat:
-
-[
-E_A\propto |A|^2
-]
-
-[
-E_B\propto |B|^2
-]
-
----
-
-# 11. Reflexion und Dissipation
-
-Der komplexe Reflexionsfaktor ist:
-
-[
-r=\frac{B}{A}
-]
-
-Der Amplitudenreflexionsfaktor ist:
-
-[
-|r|=\frac{|B|}{|A|}
-]
-
-Der reflektierte Energieanteil ist:
-
-[
-R=|r|^2
-]
-
-Die Dissipation ist:
-
-[
-D=1-R
-]
-
-Also:
-
-```text
-A, B
-→ r = B/A
-→ R = |r|²
-→ D = 1 - R
-```
-
-
-
----
-
-# 12. Automation
-
-Bei der Automation wird nach jeder Messung geprüft:
-
-[
-\text{Fehler}
-=============
-
-\frac{A_\text{Ziel}-A_\text{gemessen}}
-{A_\text{Ziel}}
-]
-
-Dann wird die Spannung korrigiert:
-
-[
-U_\text{neu}
-============
-
-U_\text{alt}
-\cdot
-\frac{A_\text{Ziel}}
-{A_\text{gemessen}}
-]
-
-Beispiel:
-
-[
-A_\text{Ziel}=60,\mu V
-]
-
-[
-A_\text{gemessen}=40,\mu V
-]
-
-Dann:
-
-[
-U_\text{neu}
-============
-
-# U_\text{alt}\cdot\frac{60}{40}
-
-1.5U_\text{alt}
-]
-
-Danach wird erneut gemessen.
-
-Das wird wiederholt, bis:
-
-[
-57,\mu V\le |A|\le63,\mu V
-]
-
-bei (5%) Toleranz.
-
----
-
-# 13. Automation-Graph
-
-Oben:
-
-* X-Achse: Frequenz
-* Y-Achse: (|A|) und (|B|)
-* Ziel-Linie bei (60,\mu V)
-* untere Toleranz bei (57,\mu V)
-* obere Toleranz bei (63,\mu V)
-
-Unten:
-
-* X-Achse: Frequenz
-* Y-Achse: benötigte Generator-Spannung
-
-Also:
-
-[
-f\rightarrow U_\text{passend}
-]
-
----
-
-# 14. Normale Frequenzschleife
-
-Bei der normalen Frequenzschleife gibt es keine Spannungsanpassung.
-
-Die Reihenfolge ist nur:
-
-```text
-Frequenz setzen
-→ Signal aufnehmen
-→ P1, P2, P3 berechnen
-→ A, B berechnen
-→ R, D berechnen
-→ nächsten Frequenzpunkt messen
-```
-
-Die Spannung bleibt dabei immer gleich.
-
----
-
-## Gesamte Kette
-
-[
-\boxed{
-f_0,U
-\rightarrow
-p_1(t),p_2(t),p_3(t)
-\rightarrow
-P_1(f_0),P_2(f_0),P_3(f_0)
-\rightarrow
-A(f_0),B(f_0)
-\rightarrow
-|A|,|B|
-\rightarrow
-R,D
-}
-]
-
-Bei der Automation kommt danach noch:
-
-[
-|A|\text{ prüfen}
-\rightarrow
-U\text{ anpassen}
-\rightarrow
+Generator starten
+        │
+        ▼
+Messung
+        │
+        ▼
+Berechnung von |A|
+        │
+        ▼
+Vergleich mit Sollwert
+        │
+        ▼
+Generator-Spannung anpassen
+        │
+        ▼
 erneut messen
+```
+
+Dies wird solange wiederholt, bis
+
+```
+|A|
+```
+
+innerhalb der Toleranz liegt.
+
+---
+
+## Berechnung der neuen Spannung
+
+Die neue Spannung wird berechnet als
+
+[
+U_{neu}
+=======
+
+U_{alt}
+\cdot
+\frac{|A_{Soll}|}
+{|A_{Mess}|}
 ]
 
-bis der Zielbereich erreicht ist.
+Dadurch wird die Generatoramplitude automatisch angepasst.
+
+---
+
+## Abbruchbedingungen
+
+Die Regelung endet wenn
+
+* Ziel erreicht
+* maximale Schrittzahl erreicht
+* Generator-Maximalspannung erreicht
+* Mindestspannung erreicht
+* Clipping erkannt
+
+---
+
+# Automatischer Frequenz-Sweep
+
+Der Sweep läuft beispielsweise
+
+```
+350 Hz
+↓
+
+400 Hz
+↓
+
+450 Hz
+↓
+
+...
+
+↓
+
+2050 Hz
+```
+
+Für jede Frequenz wird die komplette Regelung erneut durchgeführt.
+
+Am Ende erhält man
+
+* Generator-Spannung
+* Amplitude vor Regelung
+* Amplitude nach Regelung
+* Fehler
+* Anzahl der Regelschritte
+
+---
+
+# Ausgabe
+
+Während der Messung werden
+
+* Live-Plots
+* Tabellen
+* Log-Dateien
+
+aktualisiert.
+
+Nach Abschluss können sämtliche Ergebnisse gespeichert werden.
+
+---
+
+# Messablauf (Gesamtübersicht)
+
+```
+Programm starten
+        │
+        ▼
+Generator verbinden
+        │
+        ▼
+Focusrite verbinden
+        │
+        ▼
+Messparameter einstellen
+        │
+        ▼
+Generator erzeugt Sinus
+        │
+        ▼
+Signalaufnahme
+        │
+        ▼
+Signalverarbeitung
+        │
+        ▼
+FFT
+        │
+        ▼
+P1 P2 P3 berechnen
+        │
+        ▼
+Least-Squares
+        │
+        ▼
+A und B bestimmen
+        │
+        ▼
+Soll-Ist-Vergleich
+        │
+        ▼
+Generator nachregeln
+        │
+        ▼
+Messung wiederholen
+        │
+        ▼
+Ergebnisse darstellen
+        │
+        ▼
+Speichern
+```
+
+---
+
+# Verwendete Hardware
+
+* Agilent 33120A Funktionsgenerator
+* Focusrite Scarlett Audio Interface
+* drei Kondensatormikrofone
+* Messrohr
+* Raspberry Pi Pico (für spätere Erweiterungen möglich)
+
+---
+
+# Verwendete Bibliotheken
+
+* Python 3
+* NumPy
+* PySide6
+* PyQtGraph
+* SoundDevice
+* PyVISA
+
+---
+
+# Ziel des Projekts
+
+Das System ermöglicht die automatische Erzeugung einer konstanten Schalldruckamplitude der hinlaufenden Welle über einen gesamten Frequenzbereich. Dadurch können frequenzabhängige Eigenschaften eines Messobjekts reproduzierbar untersucht werden. Die Software trennt die Signalverarbeitung konsequent von der grafischen Benutzeroberfläche, unterstützt sowohl reale Messhardware als auch Simulationen und bietet eine automatische Pegelregelung zur Verbesserung der Messgenauigkeit. Diese Beschreibung basiert auf der Struktur und den Funktionen der bereitgestellten Projektdateien.    
