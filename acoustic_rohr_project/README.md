@@ -1,21 +1,20 @@
-
 # Akustisches Messsystem zur Bestimmung der hin- und rücklaufenden Welle
 
 ## Übersicht
 
-Dieses Projekt dient zur Messung und Analyse von Schallwellen in einem Impedanzrohr mit drei Mikrofonen.
+Dieses Projekt dient zur Messung und Analyse von Schallwellen in einem Impedanzrohr mit drei Mikrofonen. Ziel ist die Bestimmung der hinlaufenden und rücklaufenden Welle sowie die automatische Regelung der Generatoramplitude, sodass über einen gesamten Frequenzbereich eine konstante Schalldruckamplitude der hinlaufenden Welle erreicht wird.
 
-Das Programm kann
+Das Programm bietet folgende Funktionen:
 
-* Audiosignale über ein Focusrite Scarlett Audio-Interface aufnehmen,
-* einen Agilent 33120A Funktionsgenerator automatisch steuern,
-* komplexe Schalldruckamplituden der Mikrofone berechnen,
-* die hinlaufende und rücklaufende Welle bestimmen,
-* automatische Frequenzmessungen durchführen,
-* die Generator-Spannung automatisch nachregeln, um eine konstante Schalldruckamplitude der hinlaufenden Welle zu erzeugen,
-* sämtliche Ergebnisse grafisch darstellen und speichern.
-
-Das System kann sowohl mit echter Hardware als auch vollständig simuliert betrieben werden.
+- Aufnahme von Audiosignalen über ein Focusrite Scarlett Audio-Interface
+- Steuerung eines Agilent 33120A Funktionsgenerators
+- Simulation der Messhardware für Tests ohne Laboraufbau
+- Berechnung komplexer Schalldruckamplituden der Mikrofone
+- Bestimmung der hinlaufenden und rücklaufenden Welle
+- Automatische Frequenzmessungen
+- Automatische Pegelregelung
+- Grafische Darstellung aller Messergebnisse
+- Speicherung der Messdaten
 
 ---
 
@@ -28,7 +27,7 @@ gui.py
 │      Steuerung des Agilent 33120A
 │
 ├── simulated_generator.py
-│      Generator für Simulation
+│      Simulation des Funktionsgenerators
 │
 ├── focusrite_interface.py
 │      Aufnahme über Focusrite Scarlett
@@ -37,13 +36,13 @@ gui.py
 │      Signalverarbeitung
 │
 ├── estimation.py
-│      Berechnung von A und B
+│      Berechnung der Wellen A und B
 │
 ├── automation.py
-│      automatische Regelung
+│      Automatische Regelung und Frequenz-Sweep
 │
 ├── compensation.py
-│      Verstärkung/Kompensation
+│      Kompensationsfunktionen
 │
 ├── metrics.py
 │      Hilfsfunktionen
@@ -55,9 +54,9 @@ gui.py
 
 # Programmablauf
 
-## 1. Programmstart
+## 1. Programm starten
 
-Das Projekt wird über
+Das Programm wird über
 
 ```bash
 python gui.py
@@ -65,13 +64,13 @@ python gui.py
 
 gestartet.
 
-Die GUI ist der zentrale Einstiegspunkt und verbindet alle Module.
+Die grafische Benutzeroberfläche bildet den zentralen Einstiegspunkt und verbindet alle Projektmodule.
 
 ---
 
-# 2. Auswahl der Signalquelle
+## 2. Auswahl der Signalquelle
 
-Es stehen zwei Betriebsarten zur Verfügung.
+Das System unterstützt zwei Betriebsarten.
 
 ### Simulation
 
@@ -81,23 +80,21 @@ Es werden künstliche Mikrofonsignale erzeugt.
 SimulatedGenerator
 ```
 
-Diese Betriebsart dient zur Entwicklung ohne Laborhardware.
-
----
+Diese Betriebsart eignet sich zur Entwicklung und zum Testen ohne Laborhardware.
 
 ### Hardware
 
-Im Labor werden verwendet
+Im Labor werden verwendet:
 
-* Agilent 33120A
-* Focusrite Scarlett
-* drei Mikrofone
+- Agilent 33120A Funktionsgenerator
+- Focusrite Scarlett Audio-Interface
+- drei Mikrofone
 
 ---
 
-# 3. Verbindung mit dem Generator
+## 3. Verbindung mit dem Generator
 
-Beim Start wird der Generator verbunden.
+Nach dem Start wird der Generator verbunden.
 
 ```
 Generator verbinden
@@ -106,126 +103,123 @@ Generator verbinden
 Agilent33120A.connect()
         │
         ▼
-ID des Gerätes lesen
+Geräte-ID lesen
 ```
 
 Danach können
 
-* Frequenz
-* Spannung
-* Sinusform
+- Frequenz
+- Ausgangsspannung
+- Signalform (Sinus)
 
 eingestellt werden.
 
 ---
 
-# 4. Aufnahme des Signals
+## 4. Aufnahme des Messsignals
 
-Nach dem Start einer Messung erfolgt
+Während einer Messung läuft folgender Ablauf ab:
 
 ```
 Generator erzeugt Sinus
           │
           ▼
-Focusrite nimmt auf
+Focusrite nimmt Signal auf
           │
           ▼
-3 Kanäle werden gespeichert
+Drei Mikrofonkanäle werden gespeichert
 ```
 
-Die Aufnahme erfolgt typischerweise mit
+Standardparameter:
 
-* 48 kHz
-* 1 s Messdauer
+- Abtastrate: 48 kHz
+- Messdauer: 1 s
 
 ---
 
-# 5. Signalvorbereitung
+## 5. Signalvorverarbeitung
 
-Vor der eigentlichen Berechnung werden die Signale geprüft.
+Vor der eigentlichen Auswertung werden die aufgenommenen Signale überprüft.
 
 Dabei erfolgt
 
-* Prüfung der Kanalanzahl
-* Kalibrierung
-* Umwandlung in NumPy
-* Clippingkontrolle
+- Kontrolle der Kanalanzahl
+- Anwendung der Mikrofonkalibrierung
+- Umwandlung in NumPy-Arrays
+- Prüfung auf Clipping
 
 ---
 
-# 6. Berechnung der komplexen Schalldrücke
+## 6. Berechnung der komplexen Schalldrücke
 
 Für jedes Mikrofon wird die komplexe Schalldruckamplitude berechnet.
 
-Für jedes Mikrofon entstehen
+Für jedes Mikrofon werden bestimmt:
 
 ```
-P1
-P2
-P3
+P₁
+P₂
+P₃
 ```
 
 sowie
 
-* Betrag
-* Phase
-* RMS
+- Betrag
+- Phase
+- RMS-Wert
 
 ---
 
-# 7. Berechnung der Wellen
+## 7. Berechnung der hin- und rücklaufenden Welle
 
-Aus
+Aus den drei komplexen Mikrofonwerten
 
 ```
-P1
-P2
-P3
+P₁
+P₂
+P₃
 ```
 
-wird mittels Least-Squares
+werden mittels Least-Squares die beiden Wellen bestimmt.
 
 ```
 A
 ```
 
-(hinlaufende Welle)
-
-und
+Hinlaufende Welle
 
 ```
 B
 ```
 
-(rücklaufende Welle)
+Rücklaufende Welle
 
-berechnet.
+Hierzu wird das lineare Gleichungssystem gelöst
 
-Hierzu wird das lineare Gleichungssystem
+```text
+P = M · [A B]ᵀ
+```
 
-[
-P=M\cdot
-\begin{bmatrix}
-A\
-B
-\end{bmatrix}
-]
+wobei
 
-gelöst.
+- **P** den Messvektor der Mikrofone beschreibt,
+- **M** die Ausbreitungsmatrix darstellt,
+- **A** die hinlaufende Welle ist,
+- **B** die rücklaufende Welle ist.
 
 ---
 
-# 8. Darstellung
+## 8. Darstellung der Ergebnisse
 
-Die GUI zeigt anschließend
+Die grafische Oberfläche zeigt
 
-* Zeitverlauf
-* FFT
-* komplexe Mikrofonwerte
-* Wellenzerlegung
-* Pegel
-* Ortsverlauf
-* dBµV-Darstellung
+- Zeitverlauf
+- FFT
+- komplexe Mikrofonwerte
+- Wellenzerlegung
+- Schalldruckpegel
+- Ortsverlauf im Rohr
+- RMS-Pegel in dBµV
 
 ---
 
@@ -233,87 +227,87 @@ Die GUI zeigt anschließend
 
 Die wichtigste Funktion des Projekts ist die automatische Regelung.
 
-Ziel ist
+Ziel ist:
 
-> Für jede Frequenz soll die hinlaufende Welle dieselbe Amplitude besitzen.
+> Für jede Frequenz soll die hinlaufende Welle dieselbe Schalldruckamplitude besitzen.
 
 ---
 
 ## Ablauf
 
-Für jede Frequenz erfolgt
+Für jede Frequenz wird folgender Regelkreis ausgeführt.
 
 ```
 Generator starten
         │
         ▼
-Messung
+Signal aufnehmen
         │
         ▼
-Berechnung von |A|
+Amplitude |A| berechnen
         │
         ▼
-Vergleich mit Sollwert
+Soll-Ist-Vergleich
         │
         ▼
 Generator-Spannung anpassen
         │
         ▼
-erneut messen
+Neue Messung
 ```
 
-Dies wird solange wiederholt, bis
-
-```
-|A|
-```
-
-innerhalb der Toleranz liegt.
+Dieser Vorgang wird wiederholt, bis die gewünschte Toleranz erreicht wird.
 
 ---
 
 ## Berechnung der neuen Spannung
 
-Die neue Spannung wird berechnet als
+Die Generator-Spannung wird nach jedem Messschritt proportional angepasst.
 
-[
-U_{neu}
-=======
+```text
+U_neu = U_alt · ( |A_Soll| / |A_Mess| )
+```
 
-U_{alt}
-\cdot
-\frac{|A_{Soll}|}
-{|A_{Mess}|}
-]
+Dabei gilt:
 
-Dadurch wird die Generatoramplitude automatisch angepasst.
+- **U_neu** : neue Generator-Spannung
+- **U_alt** : bisherige Generator-Spannung
+- **|A_Soll|** : gewünschte Amplitude
+- **|A_Mess|** : gemessene Amplitude
+
+Ist die gemessene Amplitude kleiner als der Sollwert, wird die Generator-Spannung erhöht.
+
+Ist sie größer, wird die Spannung reduziert.
 
 ---
 
 ## Abbruchbedingungen
 
-Die Regelung endet wenn
+Die automatische Regelung endet, wenn
 
-* Ziel erreicht
-* maximale Schrittzahl erreicht
-* Generator-Maximalspannung erreicht
-* Mindestspannung erreicht
-* Clipping erkannt
+- die Zielamplitude erreicht wurde,
+- die maximale Schrittzahl erreicht wurde,
+- die maximale Generator-Spannung erreicht wurde,
+- die minimale Generator-Spannung erreicht wurde,
+- Clipping erkannt wurde.
 
 ---
 
 # Automatischer Frequenz-Sweep
 
-Der Sweep läuft beispielsweise
+Der Frequenz-Sweep läuft beispielsweise über
 
 ```
 350 Hz
+
 ↓
 
 400 Hz
+
 ↓
 
 450 Hz
+
 ↓
 
 ...
@@ -323,33 +317,33 @@ Der Sweep läuft beispielsweise
 2050 Hz
 ```
 
-Für jede Frequenz wird die komplette Regelung erneut durchgeführt.
+Für jede Frequenz wird die vollständige Messung einschließlich der automatischen Regelung durchgeführt.
 
-Am Ende erhält man
+Für jede Frequenz werden gespeichert:
 
-* Generator-Spannung
-* Amplitude vor Regelung
-* Amplitude nach Regelung
-* Fehler
-* Anzahl der Regelschritte
+- Generator-Spannung vor der Regelung
+- Generator-Spannung nach der Regelung
+- Amplitude vor der Regelung
+- Amplitude nach der Regelung
+- relativer Fehler
+- Anzahl der Regelschritte
 
 ---
 
 # Ausgabe
 
-Während der Messung werden
+Während der Messung werden fortlaufend aktualisiert:
 
-* Live-Plots
-* Tabellen
-* Log-Dateien
+- Live-Plots
+- FFT
+- Tabellen
+- Log-Dateien
 
-aktualisiert.
-
-Nach Abschluss können sämtliche Ergebnisse gespeichert werden.
+Nach Abschluss können sämtliche Messergebnisse gespeichert werden.
 
 ---
 
-# Messablauf (Gesamtübersicht)
+# Gesamter Messablauf
 
 ```
 Programm starten
@@ -364,31 +358,31 @@ Focusrite verbinden
 Messparameter einstellen
         │
         ▼
-Generator erzeugt Sinus
+Generator erzeugt Sinussignal
         │
         ▼
 Signalaufnahme
         │
         ▼
-Signalverarbeitung
+Signalvorverarbeitung
         │
         ▼
-FFT
+FFT-Berechnung
         │
         ▼
-P1 P2 P3 berechnen
+Berechnung von P₁, P₂ und P₃
         │
         ▼
-Least-Squares
+Least-Squares-Schätzung
         │
         ▼
-A und B bestimmen
+Berechnung von A und B
         │
         ▼
 Soll-Ist-Vergleich
         │
         ▼
-Generator nachregeln
+Automatische Spannungsregelung
         │
         ▼
 Messung wiederholen
@@ -397,32 +391,31 @@ Messung wiederholen
 Ergebnisse darstellen
         │
         ▼
-Speichern
+Messdaten speichern
 ```
 
 ---
 
 # Verwendete Hardware
 
-* Agilent 33120A Funktionsgenerator
-* Focusrite Scarlett Audio Interface
-* drei Kondensatormikrofone
-* Messrohr
-* Raspberry Pi Pico (für spätere Erweiterungen möglich)
+- Agilent 33120A Funktionsgenerator
+- Focusrite Scarlett Audio-Interface
+- drei Kondensatormikrofone
+- Impedanzrohr
 
 ---
 
-# Verwendete Bibliotheken
+# Verwendete Software
 
-* Python 3
-* NumPy
-* PySide6
-* PyQtGraph
-* SoundDevice
-* PyVISA
+- Python 3
+- NumPy
+- PySide6
+- PyQtGraph
+- SoundDevice
+- PyVISA
 
 ---
 
 # Ziel des Projekts
 
-Das System ermöglicht die automatische Erzeugung einer konstanten Schalldruckamplitude der hinlaufenden Welle über einen gesamten Frequenzbereich. Dadurch können frequenzabhängige Eigenschaften eines Messobjekts reproduzierbar untersucht werden. Die Software trennt die Signalverarbeitung konsequent von der grafischen Benutzeroberfläche, unterstützt sowohl reale Messhardware als auch Simulationen und bietet eine automatische Pegelregelung zur Verbesserung der Messgenauigkeit. Diese Beschreibung basiert auf der Struktur und den Funktionen der bereitgestellten Projektdateien.    
+Das entwickelte Messsystem ermöglicht die reproduzierbare Untersuchung von Schallfeldern in einem Impedanzrohr. Durch die automatische Regelung der Generatoramplitude wird über einen gesamten Frequenzbereich eine konstante Amplitude der hinlaufenden Welle eingestellt. Die Signalverarbeitung ist vollständig von der grafischen Benutzeroberfläche getrennt und unterstützt sowohl reale Messhardware als auch einen vollständigen Simulationsbetrieb. Dadurch eignet sich das System sowohl für Laborversuche als auch für die Weiterentwicklung neuer Messverfahren.
